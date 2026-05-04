@@ -1,9 +1,9 @@
 package tmux
 
 import (
-	"github.com/joshmedeski/sesh/v2/model"
-	"github.com/joshmedeski/sesh/v2/oswrap"
-	"github.com/joshmedeski/sesh/v2/shell"
+	"github.com/Wingsdh/cc-sesh/v2/model"
+	"github.com/Wingsdh/cc-sesh/v2/oswrap"
+	"github.com/Wingsdh/cc-sesh/v2/shell"
 )
 
 type Tmux interface {
@@ -21,8 +21,10 @@ type Tmux interface {
 	SelectWindow(targetWindow string) (string, error)
 	SwitchOrAttach(name string, opts model.ConnectOpts) (string, error)
 	ListTmuxPanes() ([]*model.TmuxPane, error)
+	ListAllPanes() ([]*model.TmuxPaneAcrossSessions, error)
 	SelectPane(windowIndex int, paneIndex int) (string, error)
 	GetCurrentSession() (string, error)
+	KillSession(targetSession string) (string, error)
 }
 
 type RealTmux struct {
@@ -40,6 +42,10 @@ func NewTmux(os oswrap.Os, shell shell.Shell, bin string) Tmux {
 
 func (t *RealTmux) AttachSession(targetSession string) (string, error) {
 	return t.shell.Cmd(t.bin, "attach-session", "-t", targetSession)
+}
+
+func (t *RealTmux) KillSession(targetSession string) (string, error) {
+	return t.shell.Cmd(t.bin, "kill-session", "-t", targetSession)
 }
 
 func (t *RealTmux) SwitchClient(targetSession string) (string, error) {

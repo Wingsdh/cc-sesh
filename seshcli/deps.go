@@ -7,31 +7,33 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/joshmedeski/sesh/v2/cache"
-	"github.com/joshmedeski/sesh/v2/cloner"
-	"github.com/joshmedeski/sesh/v2/configurator"
-	"github.com/joshmedeski/sesh/v2/connector"
-	"github.com/joshmedeski/sesh/v2/dir"
-	"github.com/joshmedeski/sesh/v2/execwrap"
-	"github.com/joshmedeski/sesh/v2/git"
-	"github.com/joshmedeski/sesh/v2/home"
-	"github.com/joshmedeski/sesh/v2/icon"
-	"github.com/joshmedeski/sesh/v2/json"
-	"github.com/joshmedeski/sesh/v2/lister"
-	"github.com/joshmedeski/sesh/v2/ls"
-	"github.com/joshmedeski/sesh/v2/model"
-	"github.com/joshmedeski/sesh/v2/namer"
-	"github.com/joshmedeski/sesh/v2/oswrap"
-	"github.com/joshmedeski/sesh/v2/pathwrap"
-	"github.com/joshmedeski/sesh/v2/picker"
-	"github.com/joshmedeski/sesh/v2/previewer"
-	"github.com/joshmedeski/sesh/v2/replacer"
-	"github.com/joshmedeski/sesh/v2/runtimewrap"
-	"github.com/joshmedeski/sesh/v2/shell"
-	"github.com/joshmedeski/sesh/v2/startup"
-	"github.com/joshmedeski/sesh/v2/tmux"
-	"github.com/joshmedeski/sesh/v2/tmuxinator"
-	"github.com/joshmedeski/sesh/v2/zoxide"
+	"github.com/Wingsdh/cc-sesh/v2/cache"
+	"github.com/Wingsdh/cc-sesh/v2/claude/attention"
+	"github.com/Wingsdh/cc-sesh/v2/claude/live"
+	"github.com/Wingsdh/cc-sesh/v2/cloner"
+	"github.com/Wingsdh/cc-sesh/v2/configurator"
+	"github.com/Wingsdh/cc-sesh/v2/connector"
+	"github.com/Wingsdh/cc-sesh/v2/dir"
+	"github.com/Wingsdh/cc-sesh/v2/execwrap"
+	"github.com/Wingsdh/cc-sesh/v2/git"
+	"github.com/Wingsdh/cc-sesh/v2/home"
+	"github.com/Wingsdh/cc-sesh/v2/icon"
+	"github.com/Wingsdh/cc-sesh/v2/json"
+	"github.com/Wingsdh/cc-sesh/v2/lister"
+	"github.com/Wingsdh/cc-sesh/v2/ls"
+	"github.com/Wingsdh/cc-sesh/v2/model"
+	"github.com/Wingsdh/cc-sesh/v2/namer"
+	"github.com/Wingsdh/cc-sesh/v2/oswrap"
+	"github.com/Wingsdh/cc-sesh/v2/pathwrap"
+	"github.com/Wingsdh/cc-sesh/v2/picker"
+	"github.com/Wingsdh/cc-sesh/v2/previewer"
+	"github.com/Wingsdh/cc-sesh/v2/replacer"
+	"github.com/Wingsdh/cc-sesh/v2/runtimewrap"
+	"github.com/Wingsdh/cc-sesh/v2/shell"
+	"github.com/Wingsdh/cc-sesh/v2/startup"
+	"github.com/Wingsdh/cc-sesh/v2/tmux"
+	"github.com/Wingsdh/cc-sesh/v2/tmuxinator"
+	"github.com/Wingsdh/cc-sesh/v2/zoxide"
 )
 
 // BaseDeps holds config-free dependencies that can be constructed eagerly.
@@ -64,6 +66,8 @@ type Deps struct {
 	Icon          icon.Icon
 	Previewer     previewer.Previewer
 	Cloner        cloner.Cloner
+	LiveReader    *live.Reader
+	Attention     *attention.Store
 }
 
 // NewBaseDeps constructs all config-free dependencies.
@@ -129,6 +133,15 @@ func (b *BaseDeps) BuildAll(configPath string) (*Deps, error) {
 	cl := cloner.NewCloner(c, b.Git)
 	pk := picker.NewPicker(config)
 
+	homeDir, _ := b.Os.UserHomeDir()
+	lr := live.NewReader(homeDir, live.NewProcessChecker())
+
+	attentionPath, err := attention.DefaultPath()
+	if err != nil {
+		slog.Warn("deps: cannot resolve attention path; attention will be disabled", "error", err)
+	}
+	att := attention.New(attentionPath)
+
 	return &Deps{
 		BaseDeps:      *b,
 		Config:        config,
@@ -142,6 +155,8 @@ func (b *BaseDeps) BuildAll(configPath string) (*Deps, error) {
 		Icon:          ic,
 		Previewer:     p,
 		Cloner:        cl,
+		LiveReader:    lr,
+		Attention:     att,
 	}, nil
 }
 
