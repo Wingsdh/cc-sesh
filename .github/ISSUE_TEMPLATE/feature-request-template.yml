@@ -2,16 +2,18 @@ name: Feature Request
 description: Request new functionality
 labels: ["enhancement", "triage"]
 assignees:
-  - joshmedeski
+  - Wingsdh
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this form for requesting a new feature. Sesh continues to grow as people like you share their ideas.
+        Thanks for taking the time to suggest a feature.
+
+        Note: cc-sesh deliberately stays minimal and focused on the Claude Code integration. Feature requests about core sesh behavior (session management, picker basics, configuration) belong in [upstream sesh](https://github.com/joshmedeski/sesh/issues) — they reach a much wider audience. Open requests here only for things specific to the Claude Code integration or the cc-sesh-only changes.
   - type: textarea
     id: request
     attributes:
-      label: What would you like sesh to do?
-      description: Describe in as much detail as possible, what you would you would like to see sesh do.
+      label: What would you like cc-sesh to do?
+      description: Describe in as much detail as possible what you would like to see cc-sesh do, and how it relates to the Claude Code integration.
     validations:
       required: true
