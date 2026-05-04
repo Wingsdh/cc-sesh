@@ -59,7 +59,12 @@ jobs:
           version: "~> v2"
           args: release --clean
         env:
-          GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+          # GITHUB_TOKEN：用于在本 repo 建 Release / 上传 archives。
+          # secrets.GITHUB_TOKEN 是 Actions 自动注入的、对当前 repo 有 contents:write 权限。
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # GH_PAT：跨 repo 用。由 .goreleaser.yaml 的 brews.repository.token 引用，
+          # 用来 push formula 到 Wingsdh/homebrew-tap（GITHUB_TOKEN 没法跨 repo）。
+          GH_PAT: ${{ secrets.GH_PAT }}
 
   check_brew:
     name: Check Brew Tap
