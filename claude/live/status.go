@@ -61,7 +61,9 @@ func (s Status) Severity() Logical {
 // 未知 status 一律当 Idle，避免穷举遗漏导致显示异常。
 func classify(rawStatus, kind string) Logical {
 	switch rawStatus {
-	case "auth_url", "pending":
+	case "auth_url", "pending", "waiting":
+		// waiting：Claude Code 在等用户批准（如 "approve Bash"），
+		// 与 auth_url/pending 同属"等用户输入"语义。
 		return LogicalNeedsInput
 	case "busy", "running", "in_progress", "async_launched", "compacting":
 		if kind == "subagent" {

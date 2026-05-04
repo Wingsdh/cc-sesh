@@ -160,6 +160,7 @@ func TestClassify(t *testing.T) {
 	}{
 		{"auth_url", "interactive", LogicalNeedsInput},
 		{"pending", "interactive", LogicalNeedsInput},
+		{"waiting", "interactive", LogicalNeedsInput},
 		{"busy", "interactive", LogicalBusy},
 		{"running", "subagent", LogicalSubagent},
 		{"async_launched", "subagent", LogicalSubagent},
