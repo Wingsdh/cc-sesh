@@ -393,6 +393,9 @@ func (m *Model) cursorDown(n int) {
 func (m Model) visibleCount() int {
 	// chrome: filter(1) + hotkey(1) + table-top(1) + header(1) + 2 blank + section overhead(~5)
 	chrome := 12
+	if !m.showSessionStateTable() {
+		chrome -= 2 // 同时隐藏 table-top 和列头时让出两行
+	}
 	available := m.height - chrome
 	if available < 1 {
 		available = 3
@@ -401,6 +404,22 @@ func (m Model) visibleCount() int {
 		available = 15
 	}
 	return available
+}
+
+// showSessionStateTable 决定是否渲染 Claude Code 状态表（table-top 横线 + ATTN/IDLE/RUN/WAIT 列头）。
+// 仅在以下两个条件都满足时渲染：
+//  1. 当前 mode 是 all 或 tmux（其他 mode 的列值始终为空）
+//  2. 当前至少有一个 session 有 Claude Code 在运行（Live 非空 或 Attention 触发）
+func (m Model) showSessionStateTable() bool {
+	if m.mode != ModeAll && m.mode != ModeTmux {
+		return false
+	}
+	for _, it := range m.allItems {
+		if !it.decoration.Live.IsEmpty() || it.decoration.Attention.Triggered {
+			return true
+		}
+	}
+	return false
 }
 
 func (m Model) contentWidth() int {
@@ -435,10 +454,12 @@ func (m Model) View() tea.View {
 	b.WriteString("\n")
 	b.WriteString(renderHotkeyHeader(m.mode))
 	b.WriteString("\n")
-	b.WriteString(renderTableTop(m.showIcons, m.contentWidth()))
-	b.WriteString("\n")
-	b.WriteString(renderColumnHeaders(m.showIcons))
-	b.WriteString("\n")
+	if m.showSessionStateTable() {
+		b.WriteString(renderTableTop(m.showIcons, m.contentWidth()))
+		b.WriteString("\n")
+		b.WriteString(renderColumnHeaders(m.showIcons))
+		b.WriteString("\n")
+	}
 
 	visible := m.visibleCount()
 
@@ -648,8 +669,11 @@ func (m Model) renderRow(fi filteredItem, isCursor bool) string {
 		srcCol = lipgloss.NewStyle().Foreground(clr).Render(icn)
 	}
 
-	// 3. ATTN/IDLE/RUN/WAIT 4 列徽章（19 字符）
-	countsCol := renderRowCounts(dec)
+	// 3. ATTN/IDLE/RUN/WAIT 4 列徽章（19 字符）；隐藏状态表时整列省略，让 name 紧贴 src icon
+	var countsCol string
+	if m.showSessionStateTable() {
+		countsCol = renderRowCounts(dec) + " "
+	}
 
 	// 4. name 列（fuzzy 高亮）
 	nameStyle := lipgloss.NewStyle()
@@ -659,7 +683,7 @@ func (m Model) renderRow(fi filteredItem, isCursor bool) string {
 	// 5. tail 列
 	tail := m.renderTail(dec)
 
-	body := cursorPrefix + srcCol + countsCol + " " + name
+	body := cursorPrefix + srcCol + countsCol + name
 	if tail != "" {
 		body += "  " + tail
 	}
