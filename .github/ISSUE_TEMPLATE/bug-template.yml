@@ -2,12 +2,14 @@ name: Bug Report
 description: File a bug report
 labels: ["bug", "triage"]
 assignees:
-  - joshmedeski
+  - Wingsdh
 body:
   - type: markdown
     attributes:
       value: |
-        Thanks for taking the time to fill out this bug report! Sesh is in active development and I expect things to not always go as expected.
+        Thanks for taking the time to fill out this bug report.
+
+        Note: cc-sesh is a fork of [joshmedeski/sesh](https://github.com/joshmedeski/sesh) that adds Claude Code live status to the picker. If your bug is about core sesh behavior (session management, picker basics, configuration), please reproduce it on upstream sesh first and report it [there](https://github.com/joshmedeski/sesh/issues) — they can fix it for everyone. Bugs specific to the Claude Code integration or the cc-sesh-only changes belong here.
   - type: textarea
     id: what-happened
     attributes:
@@ -21,14 +23,14 @@ body:
     id: version
     attributes:
       label: Version
-      description: What version of sesh are you using? (`sesh --version`)
+      description: What version of cc-sesh are you using? (`cc-sesh --version`)
     validations:
       required: true
   - type: textarea
     id: logs
     attributes:
       label: Relevant log output
-      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks. If you are using fzf, please rerun the command on it's own (ex `sesh connect ~/code/project/src`) and share the output here.
+      description: Please copy and paste any relevant log output. This will be automatically formatted into code, so no need for backticks.
   - type: checkboxes
     id: review
     attributes:
@@ -36,5 +38,5 @@ body:
       options:
         - label: Reviewed existing issues and made sure this bug has not already been submitted.
           required: true
-        - label: I have read the documentation and understand how sesh works before submitting this bug
+        - label: This bug is specific to cc-sesh (not reproducible on upstream sesh), or is about the Claude Code integration.
           required: false
