@@ -60,6 +60,8 @@ brews:
       owner: Wingsdh
       name: homebrew-tap
       branch: main
+      # 跨 repo push 必须用 PAT；默认的 GITHUB_TOKEN 只有当前 repo 权限。
+      token: "{{ .Env.GH_PAT }}"
     commit_author:
       name: goreleaser-bot
       email: bot@goreleaser.com

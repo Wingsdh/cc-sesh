@@ -30,3 +30,6 @@ cc-sesh
 dist/
 share/
 .DS_Store
+
+# Claude Code 本地状态（Wakeup 锁、agent 缓存等），勿入库
+.claude/
