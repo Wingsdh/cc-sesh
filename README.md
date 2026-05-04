@@ -25,8 +25,19 @@
 
 ---
 
+## Why?
+
+Running Claude Code in multiple tmux sessions in parallel is great — until you realize sesh's picker only shows session **names**, not what each Claude is actually **doing**. You end up attaching into every session one by one just to find out: did the refactor finish? Is anyone blocked on a permission prompt? Who's still thinking?
+
+cc-sesh layers a Claude status display on top of sesh's picker, so you can tell at a glance:
+
+- **how many Claude instances** live in each session and **what each is doing** — idle, running, or waiting on OAuth
+- a **sticky `ATTN` reminder** when any Claude finishes a round of work, so you never miss a "done"
+- everything upstream sesh already does — tmux + zoxide + configs + tmuxinator, naming, configuration — kept intact
+
 ## Table of Contents
 
+- [Why?](#why)
 - [Quick start](#quick-start) — install + tmux config in 30 seconds
 - [Commands](#commands)
 - [Picker hotkeys](#picker-hotkeys)

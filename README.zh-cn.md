@@ -25,8 +25,19 @@
 
 ---
 
+## 为什么做这个？
+
+在多个 tmux session 里并行跑 Claude Code 是个好习惯，但 sesh 的 picker 只显示 session **名字**，看不出每个 Claude 当前**在做什么**。结果你得挨个 attach 进去才能知道：那个 refactor 跑完了没？哪个卡在权限弹窗？谁还在思考？
+
+cc-sesh 在 sesh picker 上叠一层 Claude 状态，让你一眼看见：
+
+- 每个 session 里**有几个 Claude 实例**，分别**处于什么状态**——空闲、运行中、还是等 OAuth
+- 任何一个 Claude 跑完一轮活时打一个**粘性 ATTN 提醒**，保证你不会错过「完成」
+- 上游 sesh 该干的都没动——tmux + zoxide + configs + tmuxinator、命名策略、配置体系全部原样保留
+
 ## 目录
 
+- [为什么做这个？](#为什么做这个)
 - [快速开始](#快速开始) —— 安装 + tmux 配置一气呵成
 - [命令](#命令)
 - [Picker 内的 hotkey](#picker-内的-hotkey)
