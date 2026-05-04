@@ -58,7 +58,7 @@ brews:
     commit_msg_template: "Brew formula update for {{ .ProjectName }} version {{ .Tag }}"
     repository:
       owner: Wingsdh
-      name: homebrew-cc-sesh
+      name: homebrew-tap
       branch: main
     commit_author:
       name: goreleaser-bot

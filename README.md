@@ -1,7 +1,7 @@
 <h1 align="center">cc-sesh</h1>
 
 <p align="center">
-  <em>给 Claude Code 用户的 sesh fork —— 在 picker 里看见每个 tmux session 内的 Claude 实时状态。</em>
+  <em>A sesh fork for Claude Code users — see every Claude instance's live status right inside the picker.</em>
 </p>
 
 <p align="center">
@@ -13,33 +13,37 @@
   </a>
 </p>
 
----
+<div align="center">
 
-## 致敬原作者
+[English](README.md) | [简体中文](README.zh-cn.md)
 
-cc-sesh 是 [**joshmedeski/sesh**](https://github.com/joshmedeski/sesh) 的下游 fork。
-
-底层的 session 管理、tmux/zoxide/tmuxinator 集成、配置系统、命名策略、picker 的全部基础能力都来自 Josh Medeski 与 sesh 上游贡献者们多年的设计与打磨。**没有 sesh，就没有 cc-sesh。**
-
-- 上游仓库：<https://github.com/joshmedeski/sesh>
-- 上游作者：[Josh Medeski](https://github.com/joshmedeski)（[赞助 sesh 项目](https://github.com/sponsors/joshmedeski)）
-- 完整功能列表与配置文档请以 [上游 README](https://github.com/joshmedeski/sesh#readme) 为准
-
-LICENSE 沿用 MIT，版权署名 © 2023 Josh Medeski（参见 [LICENSE](LICENSE) 文件）。本 fork 的修改部分同样以 MIT 发布。
-
-如果你不需要下文描述的 Claude Code 集成，**请优先使用上游 sesh** —— 它的功能更稳定、社区更活跃、生态扩展（Raycast / Ulauncher / Walker 等）也更全。
+</div>
 
 ---
 
-## 这个 fork 在做什么
+## Credit
 
-cc-sesh 只在上游 sesh 之上做了**一件事**：让 picker 里能直接看到每个 tmux session 内 [Claude Code](https://docs.claude.com/en/docs/claude-code) 进程的实时状态，并且在「跑完一轮活」时打个粘性提醒，方便我在多个并行 session 之间分配注意力。
+cc-sesh is a downstream fork of [**joshmedeski/sesh**](https://github.com/joshmedeski/sesh).
 
-具体差异如下。
+Every piece of session management, every tmux/zoxide/tmuxinator integration, the configuration system, the naming strategies, the picker — all of it was designed and polished over years by Josh Medeski and the upstream sesh contributors. **Without sesh, there is no cc-sesh.**
 
-### 1. picker 内置 Claude 状态表格
+- Upstream repo: <https://github.com/joshmedeski/sesh>
+- Upstream author: [Josh Medeski](https://github.com/joshmedeski) ([sponsor sesh](https://github.com/sponsors/joshmedeski))
+- For the full feature list and configuration reference, the [upstream README](https://github.com/joshmedeski/sesh#readme) is authoritative
 
-原 sesh picker 的每行只有 src icon + session 名。cc-sesh 在中间加了一张 4 列的状态表：
+The LICENSE remains MIT, copyright © 2023 Josh Medeski (see [LICENSE](LICENSE)). Modifications added by this fork are released under the same MIT license.
+
+If you don't need the Claude Code integration described below, **please use upstream sesh instead** — it is more stable, has a much more active community, and benefits from a richer ecosystem (Raycast / Ulauncher / Walker integrations, packaging across more platforms, etc.).
+
+---
+
+## What this fork adds
+
+cc-sesh adds **one thing** on top of upstream sesh: it makes the live status of every [Claude Code](https://docs.claude.com/en/docs/claude-code) process visible in the picker, and pins a sticky reminder when a session has finished a round of work — so you can decide which session to attend to next when several are running in parallel.
+
+### 1. Per-row Claude status table in the picker
+
+Upstream sesh shows `src icon + session name` per row. cc-sesh inserts a 4-column status table in between:
 
 ```
   ^a all  ^t tmux  ^g configs  ^x zoxide  ^f find  ^d kill
@@ -55,52 +59,52 @@ cc-sesh 只在上游 sesh 之上做了**一件事**：让 picker 里能直接看
       ze                      ~/AI-Workspace/bay-translate
 ```
 
-- **ATTN**（橙色 ●）：粘性提醒。**和 Claude 当前状态无关** —— 一旦检测到某个 session 完成了一轮 busy/subagent → idle 转换就亮起，直到我 attach 进去（或手动 dismiss / kill）才消失。用来回答「我刚才让它跑的活到底跑完没？」
-- **IDLE**：当前空闲的 Claude 进程数
-- **RUN**：busy + subagent 之和（实际在干活）
-- **WAIT**：等用户授权（OAuth、permission prompt 等）的进程数
+- **ATTN** (orange ●): a sticky reminder. **Independent of Claude's current state** — it lights up the moment a session finishes a `busy / subagent → idle` transition, and stays on until you attach (or manually dismiss / kill the session). It answers the question *"did the thing I told it to do actually finish?"*
+- **IDLE**: number of currently-idle Claude processes
+- **RUN**: `busy + subagent` (actively working)
+- **WAIT**: processes waiting for user authorization (OAuth, permission prompts, etc.)
 
-这些数据通过扫描 `~/.claude/sessions/*.json` 拿到，按 cwd 关联到 tmux pane，再聚合到 session。**不依赖任何 Claude Code 内部接口、不修改 Claude Code 任何配置**，纯只读。
+Data is sourced by scanning `~/.claude/sessions/*.json`, then matched to tmux panes by `cwd`, then aggregated per session. **No internal Claude Code APIs are used; no Claude Code configuration is modified.** Pure read-only.
 
-### 2. picker 补齐的 hotkey
+### 2. Picker hotkeys filled in
 
-为了不再依赖 `fzf-tmux` 包一层，把上游 fzf 路径里那套 hotkey 直接补进了 picker：
+So you no longer need `fzf-tmux` to wrap the picker, the hotkeys from the upstream `fzf-tmux` recipe are baked in:
 
-| Hotkey | 行为 |
+| Hotkey | Action |
 |---|---|
-| `Ctrl-A` | all（默认 list） |
-| `Ctrl-T` | 仅 tmux session |
-| `Ctrl-G` | 仅 sesh.toml 配置 |
-| `Ctrl-X` | 仅 zoxide 历史 |
-| `Ctrl-F` | 在 `$HOME` 下深度 ≤ 2 列目录（替代 `fd`） |
-| `Ctrl-D` | kill 当前光标所指的 tmux session |
-| `Alt-D` | dismiss 当前行的 ATTN 标记（不 kill session） |
+| `Ctrl-A` | all (default list) |
+| `Ctrl-T` | tmux sessions only |
+| `Ctrl-G` | sesh.toml configs only |
+| `Ctrl-X` | zoxide history only |
+| `Ctrl-F` | walk `$HOME` to depth ≤ 2 (replaces `fd`) |
+| `Ctrl-D` | kill the tmux session under the cursor |
+| `Alt-D` | dismiss the ATTN flag on the current row (does not kill the session) |
 
-### 3. 重命名
+### 3. Renamed for coexistence
 
-为了不和已经装了上游 sesh 的环境冲突：
+So you can keep upstream sesh installed alongside this fork:
 
-| 项目 | 上游 sesh | cc-sesh |
+| | upstream sesh | cc-sesh |
 |---|---|---|
-| 二进制 | `sesh` | `cc-sesh` |
+| binary | `sesh` | `cc-sesh` |
 | Go module | `github.com/joshmedeski/sesh/v2` | `github.com/Wingsdh/cc-sesh/v2` |
-| 配置目录 | `$XDG_CONFIG_HOME/sesh/` | `$XDG_CONFIG_HOME/cc-sesh/` |
-| 配置文件名 | `sesh.toml` | `sesh.toml`（沿用文件名） |
-| 状态目录 | — | `$XDG_STATE_HOME/cc-sesh/`（仅本 fork 新增的 attention 状态） |
+| config dir | `$XDG_CONFIG_HOME/sesh/` | `$XDG_CONFIG_HOME/cc-sesh/` |
+| config file | `sesh.toml` | `sesh.toml` (same filename) |
+| state dir | — | `$XDG_STATE_HOME/cc-sesh/` (only used by the fork's attention state) |
 
-> 也就是说，你可以在同一台机器上同时装 `sesh` 和 `cc-sesh`，两套配置互不干扰。
+> Both tools can be installed on the same machine; their configs and state never collide.
 
 ---
 
-## 安装
+## Install
 
 ### Homebrew
 
 ```sh
-brew install Wingsdh/cc-sesh/cc-sesh
+brew install Wingsdh/tap/cc-sesh
 ```
 
-通过我自维护的 [Homebrew tap](https://github.com/Wingsdh/homebrew-cc-sesh) 安装（不在 homebrew-core）。每次推 release tag 时由 GoReleaser 自动更新 formula。
+Installed via my self-maintained [Homebrew tap](https://github.com/Wingsdh/homebrew-tap) (not in homebrew-core). The formula is updated automatically by GoReleaser on every release tag.
 
 ### Go install
 
@@ -108,86 +112,86 @@ brew install Wingsdh/cc-sesh/cc-sesh
 go install github.com/Wingsdh/cc-sesh/v2@latest
 ```
 
-需要 Go 1.25+。
+Requires Go 1.25+.
 
 ---
 
-装完后二进制叫 `cc-sesh`，所有子命令名与上游 sesh 一致（`list / connect / picker / window / ...`）。
+After installing, the binary is named `cc-sesh`. All subcommand names match upstream sesh (`list / connect / picker / window / ...`).
 
-> 暂未提供 AUR / Conda / Nix 等打包 —— 这是一个为了我自己用而 fork 的项目。
+> No AUR / Conda / Nix packaging is provided — this is a fork I maintain for my own use.
 
 ---
 
-## 用法
+## Usage
 
-### 基本命令
+### Basic commands
 
-完全同上游 sesh，把所有 `sesh` 替换成 `cc-sesh` 即可：
+Identical to upstream sesh — just replace every `sesh` with `cc-sesh`:
 
 ```sh
-cc-sesh list           # 列出所有 session 来源（tmux + config + zoxide + tmuxinator）
-cc-sesh connect <name> # connect 到 session（不存在则创建）
-cc-sesh picker         # 打开内置 picker（推荐）
+cc-sesh list             # list every session source (tmux + config + zoxide + tmuxinator)
+cc-sesh connect <name>   # connect to a session (creates it if it doesn't exist)
+cc-sesh picker           # open the built-in picker (recommended)
 ```
 
-`list / connect / window / pane / clone / root / last` 等子命令的语义与 flag 与上游一致，**详见 [上游 README](https://github.com/joshmedeski/sesh#readme)**。
+The semantics and flags of `list / connect / window / pane / clone / root / last` and friends all match upstream — **see the [upstream README](https://github.com/joshmedeski/sesh#readme) for full details**.
 
-### 推荐绑定（tmux）
+### Recommended tmux binding
 
-cc-sesh 的卖点是 picker，所以最佳用法是把它绑成 tmux popup：
+The picker is the main reason to use cc-sesh, so the best way to invoke it is as a tmux popup:
 
 ```tmux
 bind-key "K" display-popup -h 90% -w 60% -E "cc-sesh picker -i"
 ```
 
-`-i` 显示 src icon（需要 Nerd Font）。
+`-i` shows source icons (requires a Nerd Font).
 
-### Claude Code 集成的工作方式
+### How the Claude Code integration works
 
-picker 在 fetch 阶段会做这几件事：
+During each picker fetch:
 
-1. 调上游 lister 拿 session 列表（tmux / zoxide / config / tmuxinator）
-2. 扫 `~/.claude/sessions/*.json`，过滤出活进程
-3. 用 `tmux list-panes` 拿每个 pane 的 cwd，把 Claude 进程的 cwd 匹配到 tmux session
-4. 跟上一轮的 busy 状态对比，识别 busy/subagent → idle 转换并落入 `~/.local/state/cc-sesh/attention.json`
-5. 把每个 session 的 LiveBadge + Attention 一起贴到行上渲染
+1. Call the upstream lister to enumerate sessions (tmux / zoxide / config / tmuxinator)
+2. Scan `~/.claude/sessions/*.json` and filter to live processes
+3. Use `tmux list-panes` to grab each pane's `cwd`, then map Claude processes to tmux sessions by `cwd`
+4. Compare against the previous round's `busy` state, detect `busy/subagent → idle` transitions, and persist them to `~/.local/state/cc-sesh/attention.json`
+5. Render the per-session LiveBadge + Attention onto each row
 
-整个链路对没有 Claude 的环境完全透明 —— 任何一步失败（`~/.claude/sessions/` 不存在、tmux 不在跑、JSON 解析失败……）都会降级回上游 sesh 行为，picker 该列就是空白。
+The whole pipeline is transparent on machines without Claude Code — any failure (no `~/.claude/sessions/`, tmux not running, malformed JSON, etc.) silently degrades back to upstream sesh behavior, and the columns simply stay blank.
 
-### 配置
+### Configuration
 
-配置文件路径变成 `~/.config/cc-sesh/sesh.toml`，**配置 schema 与上游 sesh 完全一致**（`[default_session]` / `[[session]]` / `[[wildcard]]` / `[tui]` / `blacklist` / `dir_length` / `sort_order` / `cache` 等都原样可用）。
+The config file lives at `~/.config/cc-sesh/sesh.toml`. **The schema is identical to upstream sesh** — `[default_session]` / `[[session]]` / `[[wildcard]]` / `[tui]` / `blacklist` / `dir_length` / `sort_order` / `cache`, all of it works as-is.
 
-配置写法请直接看 [上游 README 的 Configuration 一节](https://github.com/joshmedeski/sesh#configuration)。
+For configuration syntax and examples, see the [upstream Configuration section](https://github.com/joshmedeski/sesh#configuration).
 
-cc-sesh 本身没有新增任何配置项 —— Claude 集成是开箱即用、**不需要也不接受任何配置**。
+cc-sesh adds **no new configuration keys** — the Claude integration is zero-config and intentionally not configurable.
 
-### Attention 状态文件
+### Attention state file
 
-为了让粘性提醒跨进程生效，cc-sesh 把 attention 状态持久化到：
+To make the sticky reminder survive across processes, cc-sesh persists attention state to:
 
 ```
 $XDG_STATE_HOME/cc-sesh/attention.json
-# 默认：~/.local/state/cc-sesh/attention.json
+# default: ~/.local/state/cc-sesh/attention.json
 ```
 
-文件可以随时手动删，删完 attention 全清，下次 picker 打开会重新积累。
+You can delete this file at any time to wipe all attention flags; the next picker open starts collecting fresh state.
 
 ---
 
-## 与上游的同步策略
+## Sync strategy with upstream
 
-- 仓库的 `main` 分支会不定期 rebase / merge 上游的 release tag
-- 我自己的修改集中在：
-  - `claude/` 包（live + attention）—— 全新增
-  - `picker/` 包 —— UI 与 hotkey 改造
-  - `seshcli/claude_wire.go` —— 把 lister + claude/live + claude/attention 串起来注入 picker
-  - module path、二进制名、配置路径的全局重命名
+- The `main` branch periodically rebases / merges in upstream release tags
+- The fork-specific changes are isolated to:
+  - `claude/` (live + attention) — net-new packages
+  - `picker/` — UI and hotkey changes
+  - `seshcli/claude_wire.go` — wires lister + claude/live + claude/attention into the picker
+  - global rename of module path, binary name, and config paths
 
-如果你想把 Claude 集成提交回上游，请直接去和 [Josh Medeski](https://github.com/joshmedeski) 讨论 —— 我没有这个计划，因为这个改动对绝大多数 sesh 用户都是不必要的复杂度。
+If you want this Claude integration upstreamed, please take it up with [Josh Medeski](https://github.com/joshmedeski) directly — I have no plans to send a PR, since this complexity isn't useful for the vast majority of sesh users.
 
 ---
 
 ## License
 
-MIT，沿袭上游 [sesh 的 LICENSE](LICENSE)，版权署名 © 2023 Josh Medeski。本 fork 新增部分同样以 MIT 发布。
+MIT, inheriting from upstream [sesh's LICENSE](LICENSE), copyright © 2023 Josh Medeski. Modifications by this fork are released under the same MIT license.
