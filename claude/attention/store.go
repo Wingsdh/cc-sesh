@@ -3,7 +3,9 @@
 // 核心语义（v2，跟 Claude 实时状态完全解耦）：
 //   - 触发：Reconcile 观察到 session 发生 active(busy/subagent) → idle 的转换 → 写入 flag
 //   - 粘性：flag 写入后**不自动清除**
-//   - 清除：用户 attach 该 session（Ack）/ session 消失（GC）/ 手动 Clear
+//   - 清除：用户 attach 该 session（Ack）/ session 消失（GC）/ 手动 Clear /
+//     被任何 tmux client 当前 attach（suppressSessionNames）
+//   - 不触发：cc 进程消失（不是跑完，是退出）；当前被 attach 的 session
 //
 // 跟 needs-input（OAuth、permission prompt）无关 —— 那个走 live 包的实时统计，
 // 不再走粘性提醒。本包只回答："有几个 session 跑完一轮活，等着你 review？"
@@ -86,23 +88,36 @@ func (s *Store) Load() map[string]Flag {
 
 // Reconcile 输入当前活实例的 busy 状态，按转换语义更新 flag。
 //
-// busyByName 的语义：
-//   - busyByName[name] = true：该 session 当前有 Claude 在 busy/subagent（在跑活）
-//   - busyByName[name] = false 或 missing：该 session 当前没在跑活（idle / 仅 needs-input / 无实例）
+// busyByName 的语义（v2 后语义收紧）：
+//   - 该 session 当前有 live Claude 实例 → 必须出现在 map 里，值为是否 busy/subagent
+//   - 该 session 没有 live Claude 实例（cc 已退出 / 从未起过） → 不要出现在 map 里
 //
 // 触发规则：
-//   - tracking 里记录 true 且本轮 busyByName[name] = false → 触发 flag
+//   - busyByName[name]=true 且 tracking[name]=false → 写 tracking
+//   - busyByName[name]=false 且 tracking[name]=true → 触发 flag（busy→idle 转换）
+//   - name 不在 busyByName 里但 tracking[name]=true 且 name 在 activeSessionNames 里
+//     → 清 tracking，不触发 flag（cc 进程消失，不是跑完一轮活）
 //   - 已存在 flag 时不更新 FirstAt（保留首次时刻）
 //
+// suppressSessionNames 是当前被某个 tmux client attach 的 session 集合：
+//   - 这些 session 不会触发新 flag（用户正在看，无需提醒）
+//   - 这些 session 已存在的 flag 会被清除
+//   - tracking 仍正常维护，便于用户离开后下一轮正常触发
+//
 // activeSessionNames 用于回收幽灵数据 —— 不在该列表中的 flag/tracking 都被删除。
-// 传 nil 表示不做 GC。
-func (s *Store) Reconcile(busyByName map[string]bool, activeSessionNames []string) error {
+// 传 nil 表示不做 GC，同时也不清"tmux 活但 cc 消失"那种 tracking。
+func (s *Store) Reconcile(busyByName map[string]bool, activeSessionNames []string, suppressSessionNames []string) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.ensureLoaded()
 
 	now := s.clock.Now()
 	changed := false
+
+	suppress := make(map[string]struct{}, len(suppressSessionNames))
+	for _, n := range suppressSessionNames {
+		suppress[n] = struct{}{}
+	}
 
 	// 1. 按本轮 busy 状态更新 tracking + 触发 flag
 	for name, isBusy := range busyByName {
@@ -112,16 +127,40 @@ func (s *Store) Reconcile(busyByName map[string]bool, activeSessionNames []strin
 			s.tracking[name] = true
 			changed = true
 		case !isBusy && wasBusy:
-			// active → idle 转换：触发 flag（如还没有）
-			if _, has := s.flags[name]; !has {
-				s.flags[name] = Flag{FirstAt: now}
+			// busy → idle 转换：触发 flag（如还没有），除非被 suppress
+			if _, suppressed := suppress[name]; !suppressed {
+				if _, has := s.flags[name]; !has {
+					s.flags[name] = Flag{FirstAt: now}
+				}
 			}
 			delete(s.tracking, name)
 			changed = true
 		}
 	}
 
-	// 2. 回收 dead session 的 flag 和 tracking
+	// 2. tmux session 还活着但本轮没观察到 live cc → 清 tracking，不触发 flag
+	//    （区分"cc 跑完转 idle"和"cc 进程消失"，后者不该写粘性提醒）
+	if activeSessionNames != nil {
+		for _, name := range activeSessionNames {
+			if _, hasCC := busyByName[name]; hasCC {
+				continue
+			}
+			if _, wasTracked := s.tracking[name]; wasTracked {
+				delete(s.tracking, name)
+				changed = true
+			}
+		}
+	}
+
+	// 3. 当前被 attach 的 session：清掉已存在的 flag（用户在看，flag 过期）
+	for name := range suppress {
+		if _, has := s.flags[name]; has {
+			delete(s.flags, name)
+			changed = true
+		}
+	}
+
+	// 4. 回收 dead session 的 flag 和 tracking
 	if activeSessionNames != nil {
 		active := make(map[string]struct{}, len(activeSessionNames))
 		for _, n := range activeSessionNames {

@@ -24,6 +24,7 @@ type Tmux interface {
 	ListAllPanes() ([]*model.TmuxPaneAcrossSessions, error)
 	SelectPane(windowIndex int, paneIndex int) (string, error)
 	GetCurrentSession() (string, error)
+	ListClients() ([]string, error)
 	KillSession(targetSession string) (string, error)
 }
 
