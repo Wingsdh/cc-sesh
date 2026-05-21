@@ -97,3 +97,35 @@ func (t *RealTmux) SelectPane(windowIndex int, paneIndex int) (string, error) {
 func (t *RealTmux) GetCurrentSession() (string, error) {
 	return t.shell.Cmd("tmux", "display-message", "-p", "#{session_name}")
 }
+
+// ListClients 返回当前所有 tmux client attach 到的 session 名（已去重）。
+// 用于 attention：被任何 client attach 的 session 都视作"用户正在看"，
+// 不应再写 attention flag，已存在的 flag 也会被清掉。
+//
+// 用 t.shell.Cmd 而非 ListCmd：前者已经把 tmux "no server running" 特判成
+// ("", nil)，正好对应"没启动 tmux 也没有 client"的预期；真正的错误
+// （比如 tmux 二进制不存在、socket 权限）才会冒出来给调用方记日志。
+func (t *RealTmux) ListClients() ([]string, error) {
+	output, err := t.shell.Cmd(t.bin, "list-clients", "-F", "#{client_session}")
+	if err != nil {
+		return nil, err
+	}
+	if output == "" {
+		return nil, nil
+	}
+	lines := strings.Split(output, "\n")
+	seen := make(map[string]struct{}, len(lines))
+	out := make([]string, 0, len(lines))
+	for _, line := range lines {
+		name := strings.TrimSpace(line)
+		if name == "" {
+			continue
+		}
+		if _, dup := seen[name]; dup {
+			continue
+		}
+		seen[name] = struct{}{}
+		out = append(out, name)
+	}
+	return out, nil
+}
