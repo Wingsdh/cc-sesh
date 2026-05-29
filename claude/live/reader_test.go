@@ -56,6 +56,40 @@ func TestRead_ClassifiesAndAggregatesByCwd(t *testing.T) {
 	assert.Equal(t, Status{Total: 1, Needing: 1}, got["/work/proj-c"])
 }
 
+func TestRead_DropsIdleBackgroundAndSubagentInstances(t *testing.T) {
+	home := setupHome(t)
+
+	// agent team / 后台任务跑完后转 idle —— 不应再计入 idle 实例
+	writeSession(t, filepath.Join(home, ".claude"), 400, "idle", "bg", "/work/proj-a")
+	writeSession(t, filepath.Join(home, ".claude"), 401, "completed", "subagent", "/work/proj-a")
+	// 同 cwd 下还在跑的后台任务 —— 仍应计入
+	writeSession(t, filepath.Join(home, ".claude"), 402, "busy", "bg", "/work/proj-a")
+	// 真正的交互式 claude 处于 idle —— 仍应计入（用户开着的 session）
+	writeSession(t, filepath.Join(home, ".claude"), 403, "idle", "interactive", "/work/proj-b")
+
+	r := NewReader(home, fakeProc{alive: map[int]bool{400: true, 401: true, 402: true, 403: true}})
+	got, err := r.Read()
+	require.NoError(t, err)
+
+	// proj-a 只剩在跑的那个 bg 实例，两个 idle 的后台/子代理实例被丢弃
+	assert.Equal(t, Status{Total: 1, Busy: 1}, got["/work/proj-a"])
+	// 交互式 idle 仍保留
+	assert.Equal(t, Status{Total: 1}, got["/work/proj-b"])
+}
+
+func TestRead_DropsIdleBackgroundEvenWhenSoleInstance(t *testing.T) {
+	home := setupHome(t)
+
+	// 关键复现：cwd 下唯一的实例是一个跑完转 idle 的后台 agent —— 整个 cwd 应消失
+	writeSession(t, filepath.Join(home, ".claude"), 410, "idle", "bg", "/work/leftover")
+
+	r := NewReader(home, fakeProc{alive: map[int]bool{410: true}})
+	got, err := r.Read()
+	require.NoError(t, err)
+
+	assert.NotContains(t, got, "/work/leftover", "跑完转 idle 的后台 agent 不应残留为 idle 实例")
+}
+
 func TestRead_SkipsDeadPids(t *testing.T) {
 	home := setupHome(t)
 
@@ -174,6 +208,28 @@ func TestClassify(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.status+"/"+tt.kind, func(t *testing.T) {
 			assert.Equal(t, tt.want, classify(tt.status, tt.kind))
+		})
+	}
+}
+
+func TestCountsAsInstance(t *testing.T) {
+	tests := []struct {
+		name    string
+		logical Logical
+		kind    string
+		want    bool
+	}{
+		{"idle bg dropped", LogicalIdle, "bg", false},
+		{"idle subagent dropped", LogicalIdle, "subagent", false},
+		{"idle interactive kept", LogicalIdle, "interactive", true},
+		{"idle unknown-kind kept", LogicalIdle, "", true},
+		{"busy bg kept", LogicalBusy, "bg", true},
+		{"running subagent kept", LogicalSubagent, "subagent", true},
+		{"needs-input bg kept", LogicalNeedsInput, "bg", true},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.want, countsAsInstance(tt.logical, tt.kind))
 		})
 	}
 }

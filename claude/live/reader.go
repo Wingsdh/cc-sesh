@@ -140,11 +140,17 @@ func (r *Reader) scan() ([]Instance, error) {
 		if !r.proc.IsAlive(raw.PID) {
 			continue
 		}
+		logical := classify(raw.Status, raw.Kind)
+		// 跑完转 idle 的后台 / 子代理实例不计入：避免 agent team 关闭后
+		// 残留的 idle 进程在状态表里多出幽灵实例。
+		if !countsAsInstance(logical, raw.Kind) {
+			continue
+		}
 		out = append(out, Instance{
 			PID:       raw.PID,
 			SessionID: raw.SessionID,
 			Cwd:       NormalizeCwd(raw.Cwd),
-			Logical:   classify(raw.Status, raw.Kind),
+			Logical:   logical,
 		})
 	}
 	return out, nil

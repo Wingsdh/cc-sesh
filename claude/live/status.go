@@ -57,6 +57,28 @@ func (s Status) Severity() Logical {
 	}
 }
 
+// isBackgroundKind 标识非交互式实例：后台任务（bg）与子代理（subagent）。
+// 这些实例由 agent team / 后台 job 产生，生命周期独立于用户操作。
+func isBackgroundKind(kind string) bool {
+	return kind == "bg" || kind == "subagent"
+}
+
+// countsAsInstance 决定一个实例是否计入聚合统计。
+//
+// 后台 / 子代理实例只在「正在跑活」（busy/subagent/needs-input）时计入；
+// 一旦转 idle（任务跑完但进程未退出，或 session 文件未清理）就不再计数。
+// 否则 agent team 关闭后残留的 idle 后台进程会一直污染状态表，
+// 让用户看到凭空多出的 idle 实例。
+//
+// 交互式实例（interactive / 旧版本缺失 kind）即使 idle 也保留——
+// 那是用户自己开着的 session，理应显示。
+func countsAsInstance(l Logical, kind string) bool {
+	if l == LogicalIdle && isBackgroundKind(kind) {
+		return false
+	}
+	return true
+}
+
 // classify 把 Claude 写到 json 的 raw status / kind 归到 Logical。
 // 未知 status 一律当 Idle，避免穷举遗漏导致显示异常。
 func classify(rawStatus, kind string) Logical {
