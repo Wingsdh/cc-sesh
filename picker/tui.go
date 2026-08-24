@@ -35,9 +35,28 @@ type filteredItem struct {
 	matchedIndexes []int
 }
 
+// WindowItem 是 picker 渲染 window 行所需的最小信息，与 tmux 具体实现解耦
+// （同 Decoration 的做法）——picker 不知道这些数据是怎么来的，只按字段渲染。
+type WindowItem struct {
+	SessionName string
+	Index       int
+	Name        string
+	Active      bool
+}
+
+// FetchResult 是取数回调的一次性返回体。
+// 之所以收成一个结构体而不是继续加返回值：window 清单只在 all/tmux 模式有意义，
+// 用具名字段比第 4 个位置参数更难传错。
+type FetchResult struct {
+	Sessions  model.SeshSessions
+	Decorator Decorator
+	// Windows 是全部 session 的 window 清单；非 all/tmux 模式为 nil。
+	Windows []WindowItem
+}
+
 // FetchFunc 在 Init 与 mode 切换时被调用。mode 由 picker 内部按 ctrl+a/t/g/x/f 切换；
 // 调用方根据 mode 决定数据源（all/tmux/config/zoxide/find）。
-type FetchFunc func(mode string) (model.SeshSessions, Decorator, error)
+type FetchFunc func(mode string) (FetchResult, error)
 
 // 五种 fetch mode 常量。
 const (
@@ -51,6 +70,7 @@ const (
 type sessionsLoadedMsg struct {
 	sessions  model.SeshSessions
 	decorator Decorator
+	windows   []WindowItem
 	err       error
 }
 
@@ -75,6 +95,11 @@ type Model struct {
 	killer         Killer
 	now            func() time.Time
 	mode           string // 当前 fetch mode：all/tmux/config/zoxide/find
+
+	// windows 是本轮取数带回的全量 window 清单（非 all/tmux 模式为 nil）；
+	// windowsBySession 是它按 session 名分组、组内按 Index 升序后的索引。
+	windows          []WindowItem
+	windowsBySession map[string][]WindowItem
 }
 
 // srcIcon 返回 sesh 原本的来源 icon + ANSI 颜色。
@@ -154,8 +179,13 @@ func (m Model) Init() tea.Cmd {
 func (m Model) fetchSessions() tea.Cmd {
 	mode := m.mode
 	return func() tea.Msg {
-		sessions, dec, err := m.fetchFunc(mode)
-		return sessionsLoadedMsg{sessions: sessions, decorator: dec, err: err}
+		res, err := m.fetchFunc(mode)
+		return sessionsLoadedMsg{
+			sessions:  res.Sessions,
+			decorator: res.Decorator,
+			windows:   res.Windows,
+			err:       err,
+		}
 	}
 }
 
@@ -183,6 +213,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if msg.decorator != nil {
 			m.decorator = msg.decorator
 		}
+		m.windows = msg.windows
 		m.allItems = buildItems(msg.sessions, m.decorator, m.separatorAware)
 		m.applyFilter()
 		return m, nil

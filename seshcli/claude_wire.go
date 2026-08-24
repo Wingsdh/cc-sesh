@@ -25,7 +25,7 @@ import (
 //
 // 任何一步失败都不阻塞 picker —— 走 fallback（无 live / 无 attention）继续。
 func makeClaudeFetcher(deps *Deps, listerOpts lister.ListOptions) picker.FetchFunc {
-	return func(mode string) (model.SeshSessions, picker.Decorator, error) {
+	return func(mode string) (picker.FetchResult, error) {
 		if mode == picker.ModeFind {
 			return fetchFindResults(deps)
 		}
@@ -42,7 +42,7 @@ func makeClaudeFetcher(deps *Deps, listerOpts lister.ListOptions) picker.FetchFu
 
 		sessions, err := deps.Lister.List(opts)
 		if err != nil {
-			return model.SeshSessions{}, nil, err
+			return picker.FetchResult{}, err
 		}
 
 		instances, instancesOk := readInstancesOrEmpty(deps.LiveReader)
@@ -54,20 +54,57 @@ func makeClaudeFetcher(deps *Deps, listerOpts lister.ListOptions) picker.FetchFu
 
 		flags := reconcileAttention(deps.Attention, deps.Tmux, sessions, liveByName, liveOk)
 
-		return sessions, &claudeDecorator{
-			liveByName: liveByName,
-			flags:      flags,
+		return picker.FetchResult{
+			Sessions: sessions,
+			Decorator: &claudeDecorator{
+				liveByName: liveByName,
+				flags:      flags,
+			},
+			Windows: fetchWindowItems(mode, deps.Tmux),
 		}, nil
 	}
+}
+
+// fetchWindowItems 只在 all / tmux 模式下拉全量 window 清单——
+// 其余模式（config/zoxide/find）的条目本来就不可展开，拉了也没人用，
+// 白白多跑一次 tmux 命令。
+//
+// fail-soft：ListAllWindows 报错时只 warn 并返回 nil，让 picker 退化成
+// 「全部 session 不可展开」，绝不阻断整个取数（与 live / attention 一致）。
+func fetchWindowItems(mode string, t tmux.Tmux) []picker.WindowItem {
+	if mode != picker.ModeAll && mode != picker.ModeTmux {
+		return nil
+	}
+	if t == nil {
+		return nil
+	}
+	raw, err := t.ListAllWindows()
+	if err != nil {
+		slog.Warn("claude: list all windows failed", "error", err)
+		return nil
+	}
+	items := make([]picker.WindowItem, 0, len(raw))
+	for _, w := range raw {
+		if w == nil {
+			continue
+		}
+		items = append(items, picker.WindowItem{
+			SessionName: w.SessionName,
+			Index:       w.Index,
+			Name:        w.Name,
+			Active:      w.Active,
+		})
+	}
+	return items
 }
 
 // fetchFindResults 用 filepath.WalkDir 列 home 下深度 ≤2 的目录，
 // 对应 fzf 路径里的 `fd -H -d 2 -t d -E .Trash . ~` 行为。
 // 不依赖外部 fd，跨环境通用。
-func fetchFindResults(deps *Deps) (model.SeshSessions, picker.Decorator, error) {
+func fetchFindResults(deps *Deps) (picker.FetchResult, error) {
 	home, err := deps.Os.UserHomeDir()
 	if err != nil {
-		return model.SeshSessions{}, picker.NoDecoration{}, err
+		return picker.FetchResult{Decorator: picker.NoDecoration{}}, err
 	}
 	dir := make(model.SeshSessionMap)
 	index := []string{}
@@ -100,7 +137,10 @@ func fetchFindResults(deps *Deps) (model.SeshSessions, picker.Decorator, error) 
 		}
 		return nil
 	})
-	return model.SeshSessions{Directory: dir, OrderedIndex: index}, picker.NoDecoration{}, nil
+	return picker.FetchResult{
+		Sessions:  model.SeshSessions{Directory: dir, OrderedIndex: index},
+		Decorator: picker.NoDecoration{},
+	}, nil
 }
 
 // readInstancesOrEmpty 返回 live 实例切片和"读取是否成功"标志。

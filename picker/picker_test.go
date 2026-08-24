@@ -28,8 +28,8 @@ func testSessions() model.SeshSessions {
 }
 
 func testFetchFunc(sessions model.SeshSessions) FetchFunc {
-	return func(string) (model.SeshSessions, Decorator, error) {
-		return sessions, NoDecoration{}, nil
+	return func(string) (FetchResult, error) {
+		return FetchResult{Sessions: sessions, Decorator: NoDecoration{}}, nil
 	}
 }
 
@@ -255,8 +255,8 @@ func TestUpdate_SessionsLoaded_WithPreTypedFilter(t *testing.T) {
 
 func TestUpdate_SessionsLoadError(t *testing.T) {
 	fetchErr := errors.New("zoxide not found")
-	m := New(func(string) (model.SeshSessions, Decorator, error) {
-		return model.SeshSessions{}, NoDecoration{}, fetchErr
+	m := New(func(string) (FetchResult, error) {
+		return FetchResult{Sessions: model.SeshSessions{}, Decorator: NoDecoration{}}, fetchErr
 	}, NoDecoration{}, nil, nil, false, false, "> ", "Filter sessions...")
 
 	result, _ := m.Update(sessionsLoadedMsg{err: fetchErr})

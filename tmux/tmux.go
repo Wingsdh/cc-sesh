@@ -9,6 +9,7 @@ import (
 type Tmux interface {
 	ListSessions() ([]*model.TmuxSession, error)
 	ListWindows(targetSession string) ([]*model.TmuxWindow, error)
+	ListAllWindows() ([]*model.TmuxWindowAcrossSessions, error)
 	NewSession(sessionName string, startDir string, shellCommand string) (string, error)
 	NewWindow(startDir string, name string, shellCommand string) (string, error)
 	NewWindowInSession(name string, startDir string, targetSession string, shellCommand string) (string, error)
@@ -16,7 +17,9 @@ type Tmux interface {
 	AttachSession(targetSession string) (string, error)
 	SendKeys(name string, command string) (string, error)
 	SwitchClient(targetSession string) (string, error)
-	CapturePane(targetSession string) (string, error)
+	// CapturePane 抓取任意 tmux 目标的当前屏幕内容（含 ANSI 颜色）。
+	// target 接受 tmux 的任意目标形态："sess" / "sess:3" / "sess:3.0"，原样透传给 -t。
+	CapturePane(target string) (string, error)
 	NextWindow() (string, error)
 	SelectWindow(targetWindow string) (string, error)
 	SwitchOrAttach(name string, opts model.ConnectOpts) (string, error)
@@ -73,8 +76,8 @@ func (t *RealTmux) NewWindow(startDir string, name string, shellCommand string) 
 	return t.shell.Cmd(t.bin, args...)
 }
 
-func (t *RealTmux) CapturePane(targetSession string) (string, error) {
-	return t.shell.Cmd(t.bin, "capture-pane", "-e", "-p", "-t", targetSession)
+func (t *RealTmux) CapturePane(target string) (string, error) {
+	return t.shell.Cmd(t.bin, "capture-pane", "-e", "-p", "-t", target)
 }
 
 func (t *RealTmux) NextWindow() (string, error) {
