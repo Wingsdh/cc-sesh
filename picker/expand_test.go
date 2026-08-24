@@ -51,6 +51,7 @@ package picker
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	tea "charm.land/bubbletea/v2"
@@ -1036,6 +1037,98 @@ func TestUpdateArrowDown_ClampsAtLastRow(t *testing.T) {
 	}
 
 	assert.Equal(t, last, m.cursor, "下移超出末行应被夹紧，不指向不存在的行")
+}
+
+// assertRowInBounds 是 TestHalfPageMovement_AcrossExpandedWindowRows_StaysInBounds 的共用断言：
+// 半页移动后 cursor/offset 必须仍在合法区间——[offset, offset+visibleCount()) 始终包含 cursor。
+func assertRowInBounds(t *testing.T, m Model, visible int, label string) {
+	t.Helper()
+	assert.GreaterOrEqual(t, m.cursor, 0, label)
+	assert.Less(t, m.cursor, len(m.rows), label)
+	assert.GreaterOrEqual(t, m.offset, 0, label)
+	assert.True(t, m.offset <= m.cursor && m.cursor < m.offset+visible,
+		"%s: [offset,offset+visibleCount) 必须包含 cursor，offset=%d cursor=%d visible=%d",
+		label, m.offset, m.cursor, visible)
+}
+
+// TestHalfPageMovement_AcrossExpandedWindowRows_StaysInBounds 补 plan §7 覆盖锚点：
+// 「Ctrl-u / pgup / pgdown：跨 window 行的半页移动后 cursor/offset 仍在合法区间」。
+// 之前的 TestHalfPageMovement 只覆盖纯 session 行场景，这里专门构造一批本地夹具
+// （8 个 tmux session × 4 个 window，全部展开 = 40 行，明显超过 visibleCount()，
+// session 行与 window 行交错），不改动 expandTestSessions()/expandTestWindows()
+// 这两个既有共享夹具，避免波及其它测试。
+func TestHalfPageMovement_AcrossExpandedWindowRows_StaysInBounds(t *testing.T) {
+	dir := model.SeshSessionMap{}
+	index := make([]string, 0, 8)
+	windows := make([]WindowItem, 0, 32)
+	for i := 0; i < 8; i++ {
+		key := fmt.Sprintf("s%d", i)
+		name := fmt.Sprintf("proj-%d", i)
+		dir[key] = model.SeshSession{Name: name, Src: "tmux"}
+		index = append(index, key)
+		for w := 1; w <= 4; w++ {
+			windows = append(windows, WindowItem{SessionName: name, Index: w, Name: fmt.Sprintf("win%d", w)})
+		}
+	}
+	sessions := model.SeshSessions{OrderedIndex: index, Directory: dir}
+
+	fetch := func(string) (FetchResult, error) {
+		return FetchResult{Sessions: sessions, Decorator: NoDecoration{}, Windows: windows}, nil
+	}
+	m := New(fetch, NoDecoration{}, nil, nil, false, false, "> ", "Filter sessions...")
+	result, _ := m.Update(sessionsLoadedMsg{sessions: sessions, decorator: NoDecoration{}, windows: windows})
+	m2 := result.(Model)
+	m2.height = 30
+
+	// 展开全部 8 个 session：rows 变成 8 + 8*4 = 40 行，session 行与 window 行交错。
+	for i := 0; i < 8; i++ {
+		target := fmt.Sprintf("proj-%d", i)
+		for idx, r := range m2.rows {
+			if r.kind == rowSession && m2.filtered[r.sessionIdx].item.name == target {
+				m2.cursor = idx
+				break
+			}
+		}
+		m2.expandCurrent()
+	}
+	require.Len(t, m2.rows, 8+8*4, "8 会话各展开 4 个 window，rows 应为 40 行")
+
+	visible := m2.visibleCount()
+	half := visible / 2
+	require.Greater(t, half, 0, "夹具行数需要明显超过 visibleCount() 才能测出半页步长")
+
+	// Ctrl-u：从行尾往上半页
+	m2.cursor = len(m2.rows) - 1
+	m2.offset = len(m2.rows) - visible
+	result2, _ := m2.Update(tea.KeyPressMsg{Code: 'u', Mod: tea.ModCtrl})
+	m3 := result2.(Model)
+	assert.Equal(t, len(m2.rows)-1-half, m3.cursor, "Ctrl-u 应精确上移 visibleCount()/2 步")
+	assertRowInBounds(t, m3, visible, "ctrl+u")
+
+	// pgdown：从第 0 行往下半页（此时光标停在 session 行与 window 行交界处都有可能，
+	// 半页步长本身不关心当前行类型，只关心可见行总数）
+	m3.cursor = 0
+	m3.offset = 0
+	result3, _ := m3.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+	m4 := result3.(Model)
+	assert.Equal(t, half, m4.cursor, "pgdown 应精确下移 visibleCount()/2 步")
+	assertRowInBounds(t, m4, visible, "pgdown")
+
+	// pgup：从当前位置（半页处）再往上半页，应该回到 0（或被夹紧到 0，取决于半页是否整除）
+	result4, _ := m4.Update(tea.KeyPressMsg{Code: tea.KeyPgUp})
+	m5 := result4.(Model)
+	assertRowInBounds(t, m5, visible, "pgup")
+	assert.LessOrEqual(t, m5.cursor, m4.cursor, "pgup 不应把光标移得比移动前更靠后")
+
+	// 连续多次 pgdown 直到末尾，确认全程 cursor/offset 都保持合法区间，
+	// 不会因为半页步长跨过 window 行块的边界而越界。
+	cur := m5
+	for i := 0; i < len(cur.rows)/half+2; i++ {
+		res, _ := cur.Update(tea.KeyPressMsg{Code: tea.KeyPgDown})
+		cur = res.(Model)
+		assertRowInBounds(t, cur, visible, fmt.Sprintf("连续 pgdown 第 %d 次", i+1))
+	}
+	assert.Equal(t, len(cur.rows)-1, cur.cursor, "连续 pgdown 到底应该稳定停在末行，不越界也不卡在中途")
 }
 
 // ---------- Section K: kill session 不留孤儿 window 行 ----------
