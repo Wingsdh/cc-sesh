@@ -26,6 +26,7 @@ import (
 	"github.com/Wingsdh/cc-sesh/v2/oswrap"
 	"github.com/Wingsdh/cc-sesh/v2/pathwrap"
 	"github.com/Wingsdh/cc-sesh/v2/picker"
+	"github.com/Wingsdh/cc-sesh/v2/picker/uistate"
 	"github.com/Wingsdh/cc-sesh/v2/previewer"
 	"github.com/Wingsdh/cc-sesh/v2/replacer"
 	"github.com/Wingsdh/cc-sesh/v2/runtimewrap"
@@ -68,6 +69,7 @@ type Deps struct {
 	Cloner        cloner.Cloner
 	LiveReader    *live.Reader
 	Attention     *attention.Store
+	PickerUIState *uistate.Store
 }
 
 // NewBaseDeps constructs all config-free dependencies.
@@ -142,6 +144,15 @@ func (b *BaseDeps) BuildAll(configPath string) (*Deps, error) {
 	}
 	att := attention.New(attentionPath)
 
+	// picker 的展开记忆走独立文件，与 attention.json 分开：
+	// 两者的生命周期和损坏后的兜底语义都不同，混一个文件会让任一方的写失败连坐另一方。
+	var pickerUI *uistate.Store
+	if uiPath, err := uistate.DefaultPath(); err != nil {
+		slog.Warn("deps: cannot resolve picker ui state path; expand memory will be disabled", "error", err)
+	} else {
+		pickerUI = uistate.New(uiPath)
+	}
+
 	return &Deps{
 		BaseDeps:      *b,
 		Config:        config,
@@ -157,6 +168,7 @@ func (b *BaseDeps) BuildAll(configPath string) (*Deps, error) {
 		Cloner:        cl,
 		LiveReader:    lr,
 		Attention:     att,
+		PickerUIState: pickerUI,
 	}, nil
 }
 

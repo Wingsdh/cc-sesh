@@ -33,6 +33,31 @@ func (s sessionItems) Len() int            { return len(s) }
 type filteredItem struct {
 	item           sessionItem
 	matchedIndexes []int
+	// windowMatches 是本轮搜索在该 session 的 window 名上命中的结果（无搜索时为空）。
+	windowMatches []windowMatch
+}
+
+// windowMatch 是某个 session 下被搜索命中的 window，连同它名字里的命中下标。
+type windowMatch struct {
+	window         WindowItem
+	matchedIndexes []int
+}
+
+type rowKind int
+
+const (
+	rowSession rowKind = iota
+	rowWindow
+)
+
+// visibleRow 是渲染与光标的唯一依据：把「session 行 + 展开出来的 window 行」
+// 拍平成一维序列，光标、滚动、回车全部以它为单位，而不再是 m.filtered 的下标。
+type visibleRow struct {
+	kind       rowKind
+	sessionIdx int // 指向 m.filtered
+	// 以下两项仅 rowWindow 有效
+	window         WindowItem
+	matchedIndexes []int // window 名的命中高亮下标
 }
 
 // WindowItem 是 picker 渲染 window 行所需的最小信息，与 tmux 具体实现解耦
@@ -60,11 +85,11 @@ type FetchFunc func(mode string) (FetchResult, error)
 
 // 五种 fetch mode 常量。
 const (
-	ModeAll     = "all"
-	ModeTmux    = "tmux"
-	ModeConfig  = "config"
-	ModeZoxide  = "zoxide"
-	ModeFind    = "find"
+	ModeAll    = "all"
+	ModeTmux   = "tmux"
+	ModeConfig = "config"
+	ModeZoxide = "zoxide"
+	ModeFind   = "find"
 )
 
 type sessionsLoadedMsg struct {
@@ -100,6 +125,15 @@ type Model struct {
 	// windowsBySession 是它按 session 名分组、组内按 Index 升序后的索引。
 	windows          []WindowItem
 	windowsBySession map[string][]WindowItem
+
+	// rows 是拍平后的可见行序列，cursor / offset 都以它为单位。
+	rows []visibleRow
+	// expanded 是用户用 →/← 手动维护的展开集合，会落盘；
+	// tempExpanded 是搜索命中 window 时的临时展开，NEVER 落盘、清空搜索即失效。
+	// 两者刻意分开：混成一个集合会让搜索把用户的手动展开态污染进磁盘。
+	expanded     map[string]struct{}
+	tempExpanded map[string]struct{}
+	expandStore  ExpandStore
 }
 
 // srcIcon 返回 sesh 原本的来源 icon + ANSI 颜色。
@@ -167,8 +201,28 @@ func New(fetchFunc FetchFunc, dec Decorator, dis Dismisser, kil Killer, showIcon
 		killer:         kil,
 		now:            time.Now,
 		mode:           ModeAll,
+		expanded:       map[string]struct{}{},
+		tempExpanded:   map[string]struct{}{},
 	}
 	m.focusCmd = m.filterInput.Focus()
+	return m
+}
+
+// WithExpandStore 注入折叠记忆存储并立刻载入手动展开集合。
+// 做成链式 setter（照 attention.Store.WithClock 先例）而不是加 New() 参数，
+// 既有 10 处 New() 调用点因此零改动。
+//
+// 传 nil → 退化为纯内存展开状态：不读盘、不写盘。
+func (m Model) WithExpandStore(store ExpandStore) Model {
+	m.expandStore = store
+	m.expanded = map[string]struct{}{}
+	if store != nil {
+		// 拷一份而不是直接持有 store 返回的 map：后续的展开/折起会就地改这个集合，
+		// 直接持有会把 picker 的内存状态渗回存储实现内部。
+		for name := range store.LoadExpanded() {
+			m.expanded[name] = struct{}{}
+		}
+	}
 	return m
 }
 
@@ -199,6 +253,9 @@ func (m *Model) switchMode(mode string) tea.Cmd {
 	m.cursor = 0
 	m.offset = 0
 	m.filterInput.SetValue("")
+	// 搜索临时展开只属于上一轮搜索，切数据源时一并清掉；
+	// expanded 是用户的手动记忆，切回 all/tmux 时还要按它呈现，绝不清。
+	m.tempExpanded = map[string]struct{}{}
 	return m.fetchSessions()
 }
 
@@ -214,6 +271,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.decorator = msg.decorator
 		}
 		m.windows = msg.windows
+		m.windowsBySession = groupWindowsBySession(msg.windows)
 		m.allItems = buildItems(msg.sessions, m.decorator, m.separatorAware)
 		m.applyFilter()
 		return m, nil
@@ -230,9 +288,16 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			if m.loading {
 				return m, nil
 			}
-			if len(m.filtered) > 0 {
-				selected := m.filtered[m.cursor]
-				m.chosen = selected.item.name
+			if row, ok := m.rowAt(m.cursor); ok {
+				name := m.filtered[row.sessionIdx].item.name
+				m.chosen = name
+				if row.kind == rowWindow {
+					// 会话名含 ':' 时 windowTarget 会拒绝拼接：宁可少切一层，
+					// 也不要拼出一个 tmux 会解析成别的东西的目标串。
+					if target, ok := windowTarget(name, row.window.Index); ok {
+						m.chosen = target
+					}
+				}
 			}
 			return m, tea.Quit
 
@@ -246,6 +311,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "down", "ctrl+j", "tab":
 			m.cursorDown(1)
+			return m, nil
+
+		case "right":
+			m.expandCurrent()
+			return m, nil
+
+		case "left":
+			m.collapseCurrent()
 			return m, nil
 
 		case "ctrl+u":
@@ -276,12 +349,20 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, m.switchMode(ModeFind)
 
 		case "ctrl+d":
+			// window 行不支持 kill：一行都不做，直接返回。
+			if row, ok := m.rowAt(m.cursor); ok && row.kind == rowWindow {
+				return m, nil
+			}
 			// kill 当前 cursor 所指 tmux session（与 fzf-tmux 习惯一致）。
 			// session 不存在后 attention 也会被自然 GC，无需额外清理。
 			m.killCurrent()
 			return m, nil
 
 		case "alt+d":
+			// window 行没有自己的 attention 标记，dismiss 无从谈起。
+			if row, ok := m.rowAt(m.cursor); ok && row.kind == rowWindow {
+				return m, nil
+			}
 			// 手动 dismiss 当前 attention 行。alt+d 避开和搜索字符 'd' 冲突。
 			m.dismissCurrent()
 			return m, nil
@@ -306,10 +387,14 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 // killCurrent kill 当前 cursor 所指的 tmux session。仅对 src=tmux 有效；
 // 其他类型（zoxide / config / tmuxinator template）没真实 session 可 kill，no-op。
 func (m *Model) killCurrent() {
-	if m.killer == nil || len(m.filtered) == 0 {
+	if m.killer == nil {
 		return
 	}
-	cur := m.filtered[m.cursor].item
+	row, ok := m.rowAt(m.cursor)
+	if !ok || row.kind != rowSession {
+		return
+	}
+	cur := m.filtered[row.sessionIdx].item
 	if cur.session.Src != "tmux" {
 		return
 	}
@@ -325,21 +410,21 @@ func (m *Model) killCurrent() {
 		newItems = append(newItems, it)
 	}
 	m.allItems = newItems
+	// applyFilter 会重算可见行并夹紧光标——被 kill 的 session 展开出来的 window 行
+	// 必须随之消失，否则会留下指向不存在 session 下标的孤儿行。
 	m.applyFilter()
-	if m.cursor >= len(m.filtered) {
-		m.cursor = len(m.filtered) - 1
-		if m.cursor < 0 {
-			m.cursor = 0
-		}
-	}
 }
 
 // dismissCurrent 在 cursor 落在 attention 行时清除该行的 flag，并重新装饰所有项。
 func (m *Model) dismissCurrent() {
-	if m.dismisser == nil || len(m.filtered) == 0 {
+	if m.dismisser == nil {
 		return
 	}
-	cur := m.filtered[m.cursor].item
+	row, ok := m.rowAt(m.cursor)
+	if !ok || row.kind != rowSession {
+		return
+	}
+	cur := m.filtered[row.sessionIdx].item
 	if !cur.decoration.Attention.Triggered {
 		return
 	}
@@ -356,31 +441,57 @@ func (m *Model) dismissCurrent() {
 func (m *Model) applyFilter() {
 	pattern := m.filterInput.Value()
 
-	var matches []fuzzy.Match
-	if pattern != "" {
-		searchPat := pattern
-		if m.separatorAware {
-			searchPat = normalizeSeparators(pattern)
-		}
-		matches = fuzzy.FindFrom(searchPat, m.allItems)
-	}
-
 	if pattern == "" {
 		m.filtered = make([]filteredItem, len(m.allItems))
 		for i, item := range m.allItems {
 			m.filtered[i] = filteredItem{item: item}
 		}
+		// 没有搜索就没有临时展开：回到 expanded 决定的形态，expanded 一字不动。
+		m.tempExpanded = map[string]struct{}{}
 	} else {
-		m.filtered = make([]filteredItem, len(matches))
-		for i, match := range matches {
-			m.filtered[i] = filteredItem{
-				item:           m.allItems[match.Index],
-				matchedIndexes: match.MatchedIndexes,
-			}
+		searchPat := pattern
+		if m.separatorAware {
+			searchPat = normalizeSeparators(pattern)
 		}
+
+		matches := fuzzy.FindFrom(searchPat, m.allItems)
+		m.filtered = make([]filteredItem, 0, len(matches))
+		posByName := make(map[string]int, len(matches))
+		for _, match := range matches {
+			it := m.allItems[match.Index]
+			posByName[it.name] = len(m.filtered)
+			m.filtered = append(m.filtered, filteredItem{
+				item:           it,
+				matchedIndexes: match.MatchedIndexes,
+			})
+		}
+
+		// 搜索范围扩到 window 名：连未展开 session 的 window 也要参与匹配，
+		// 否则用户得先猜到 window 在哪个 session 里才搜得到它。
+		temp := make(map[string]struct{})
+		for _, it := range m.allItems {
+			wins := m.windowsBySession[it.name]
+			if len(wins) == 0 {
+				continue
+			}
+			wm := matchWindowNames(searchPat, wins, m.separatorAware)
+			if len(wm) == 0 {
+				continue
+			}
+			temp[it.name] = struct{}{}
+			if pos, ok := posByName[it.name]; ok {
+				m.filtered[pos].windowMatches = wm
+				continue
+			}
+			// 会话名本身没命中、只是它下面的 window 命中了 → 追加到末尾，
+			// 不抢会话名直接命中的项的位置。
+			posByName[it.name] = len(m.filtered)
+			m.filtered = append(m.filtered, filteredItem{item: it, windowMatches: wm})
+		}
+		m.tempExpanded = temp
 	}
 
-	// attention 项稳定排序到前面
+	// attention 项稳定排序到前面（只作用于 session 层，window 行永不参与顶层排序）
 	sort.SliceStable(m.filtered, func(i, j int) bool {
 		ai := m.filtered[i].item.decoration.Attention.Triggered
 		aj := m.filtered[j].item.decoration.Attention.Triggered
@@ -390,10 +501,231 @@ func (m *Model) applyFilter() {
 		return false
 	})
 
-	if m.cursor >= len(m.filtered) {
+	m.rebuildRows()
+}
+
+// matchWindowNames 对一个 session 的全部 window 名做 fuzzy，返回命中项（按 Index 升序）。
+func matchWindowNames(searchPat string, wins []WindowItem, separatorAware bool) []windowMatch {
+	names := make(windowNames, len(wins))
+	for i, w := range wins {
+		n := w.Name
+		if separatorAware {
+			n = normalizeSeparators(n)
+		}
+		names[i] = n
+	}
+	found := fuzzy.FindFrom(searchPat, names)
+	if len(found) == 0 {
+		return nil
+	}
+	out := make([]windowMatch, 0, len(found))
+	for _, f := range found {
+		out = append(out, windowMatch{
+			window:         wins[f.Index],
+			matchedIndexes: f.MatchedIndexes,
+		})
+	}
+	sort.SliceStable(out, func(i, j int) bool { return out[i].window.Index < out[j].window.Index })
+	return out
+}
+
+// windowNames 实现 fuzzy.Source，让 window 名参与与 session 名同款的模糊匹配。
+type windowNames []string
+
+func (w windowNames) String(i int) string { return w[i] }
+func (w windowNames) Len() int            { return len(w) }
+
+// groupWindowsBySession 把全量 window 清单按所属 session 分组，组内按 Index 升序。
+// 排序放在这里做一次，后续 buildVisibleRows 就不用每帧重排。
+func groupWindowsBySession(windows []WindowItem) map[string][]WindowItem {
+	out := make(map[string][]WindowItem)
+	for _, w := range windows {
+		out[w.SessionName] = append(out[w.SessionName], w)
+	}
+	for name := range out {
+		ws := out[name]
+		sort.SliceStable(ws, func(i, j int) bool { return ws[i].Index < ws[j].Index })
+		out[name] = ws
+	}
+	return out
+}
+
+// buildVisibleRows 是可见行的唯一真源：三份输入决定全部可见行，无副作用。
+//
+// 每个 session 行之后按下列优先级追加它自己的 window 行：
+//  1. 该 session 在临时展开集合里且本轮有搜索命中 → 只出命中的那些 window 行
+//  2. 否则在手动展开集合里 → 出它全部 window 行
+//  3. 否则不出
+//
+// 同时落在两个集合里走 1：搜索时用户想看的是「命中了什么」，不是整个列表。
+func buildVisibleRows(
+	filtered []filteredItem,
+	expanded map[string]struct{},
+	temp map[string]struct{},
+	windowsBySession map[string][]WindowItem,
+) []visibleRow {
+	rows := make([]visibleRow, 0, len(filtered))
+	for i, fi := range filtered {
+		rows = append(rows, visibleRow{kind: rowSession, sessionIdx: i})
+		name := fi.item.name
+
+		if _, inTemp := temp[name]; inTemp && len(fi.windowMatches) > 0 {
+			matched := append([]windowMatch(nil), fi.windowMatches...)
+			sort.SliceStable(matched, func(a, b int) bool {
+				return matched[a].window.Index < matched[b].window.Index
+			})
+			for _, wm := range matched {
+				rows = append(rows, visibleRow{
+					kind:           rowWindow,
+					sessionIdx:     i,
+					window:         wm.window,
+					matchedIndexes: wm.matchedIndexes,
+				})
+			}
+			continue
+		}
+
+		if _, inExpanded := expanded[name]; inExpanded {
+			wins := append([]WindowItem(nil), windowsBySession[name]...)
+			sort.SliceStable(wins, func(a, b int) bool { return wins[a].Index < wins[b].Index })
+			for _, w := range wins {
+				rows = append(rows, visibleRow{kind: rowWindow, sessionIdx: i, window: w})
+			}
+		}
+	}
+	return rows
+}
+
+// rebuildRows 重算可见行并夹紧光标。
+// 取数完成、搜索词变化、展开集合变化、kill session、切换数据源之后都必须走它——
+// 行数暴增或骤减而不夹紧，光标就会指向不存在的行。
+func (m *Model) rebuildRows() {
+	m.rows = buildVisibleRows(m.filtered, m.expanded, m.tempExpanded, m.windowsBySession)
+	m.clampCursor()
+}
+
+func (m Model) rowAt(i int) (visibleRow, bool) {
+	if i < 0 || i >= len(m.rows) {
+		return visibleRow{}, false
+	}
+	return m.rows[i], true
+}
+
+// isExpandable 判定 m.filtered[sessionIdx] 能否展开：
+// 必须是真实 tmux session，且它名下至少有一个 window。
+// zoxide / config / tmuxinator / find 来源的项没有真实 session，永远不可展开。
+func (m Model) isExpandable(sessionIdx int) bool {
+	if sessionIdx < 0 || sessionIdx >= len(m.filtered) {
+		return false
+	}
+	it := m.filtered[sessionIdx].item
+	if it.src != "tmux" {
+		return false
+	}
+	return len(m.windowsBySession[it.name]) >= 1
+}
+
+// clampCursor 把 cursor 与 offset 夹回合法区间，保证
+// [offset, offset+visibleCount()) 始终包含 cursor。
+func (m *Model) clampCursor() {
+	if len(m.rows) == 0 {
 		m.cursor = 0
 		m.offset = 0
+		return
 	}
+	if m.cursor > len(m.rows)-1 {
+		m.cursor = len(m.rows) - 1
+	}
+	if m.cursor < 0 {
+		m.cursor = 0
+	}
+	if m.offset > m.cursor {
+		m.offset = m.cursor
+	}
+	if visible := m.visibleCount(); m.cursor >= m.offset+visible {
+		m.offset = m.cursor - visible + 1
+	}
+	if m.offset < 0 {
+		m.offset = 0
+	}
+}
+
+// expandCurrent 处理 → 键：只对「光标停在可展开的 session 行」生效。
+// 不可展开、或光标已在 window 行 → 静默无反应，且不写盘。
+func (m *Model) expandCurrent() {
+	row, ok := m.rowAt(m.cursor)
+	if !ok || row.kind != rowSession || !m.isExpandable(row.sessionIdx) {
+		return
+	}
+	if m.expanded == nil {
+		m.expanded = map[string]struct{}{}
+	}
+	m.expanded[m.filtered[row.sessionIdx].item.name] = struct{}{}
+	m.persistExpanded()
+	m.rebuildRows()
+}
+
+// collapseCurrent 处理 ← 键：把光标所属 session 从两个展开集合里移除。
+// 光标在 window 行时把光标收回该 session 行；本来就折叠则无反应。
+//
+// 只有「确实从手动展开集合里移除了」才写盘——搜索临时展开是本轮搜索的产物，
+// 把它的折起写进磁盘会让用户下次打开发现自己从没手动折过的 session 被折了。
+func (m *Model) collapseCurrent() {
+	row, ok := m.rowAt(m.cursor)
+	if !ok {
+		return
+	}
+	idx := row.sessionIdx
+	if idx < 0 || idx >= len(m.filtered) {
+		return
+	}
+	name := m.filtered[idx].item.name
+
+	_, wasExpanded := m.expanded[name]
+	_, wasTemp := m.tempExpanded[name]
+	if !wasExpanded && !wasTemp {
+		return
+	}
+
+	delete(m.expanded, name)
+	delete(m.tempExpanded, name)
+	if wasExpanded {
+		m.persistExpanded()
+	}
+
+	m.rows = buildVisibleRows(m.filtered, m.expanded, m.tempExpanded, m.windowsBySession)
+	if row.kind == rowWindow {
+		// 折起后原来的 window 行已经不存在了，光标必须落到它所属的 session 行上
+		for i, r := range m.rows {
+			if r.kind == rowSession && r.sessionIdx == idx {
+				m.cursor = i
+				break
+			}
+		}
+	}
+	m.clampCursor()
+}
+
+// persistExpanded 把当前手动展开集合写盘。写失败只影响下次记忆，不打断 picker。
+func (m *Model) persistExpanded() {
+	if m.expandStore == nil {
+		return
+	}
+	names := make([]string, 0, len(m.expanded))
+	for name := range m.expanded {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	_ = m.expandStore.SaveExpanded(names)
+}
+
+// windowTarget 拼出 tmux 的 window 目标串。
+// 会话名本身含 ':' 时无法拼出无歧义的目标 → ok=false，调用方退化为只用会话名。
+func windowTarget(session string, index int) (string, bool) {
+	if strings.Contains(session, ":") {
+		return "", false
+	}
+	return fmt.Sprintf("%s:%d", session, index), true
 }
 
 func (m *Model) cursorUp(n int) {
@@ -408,7 +740,7 @@ func (m *Model) cursorUp(n int) {
 
 func (m *Model) cursorDown(n int) {
 	m.cursor += n
-	max := len(m.filtered) - 1
+	max := len(m.rows) - 1
 	if max < 0 {
 		max = 0
 	}
@@ -503,8 +835,8 @@ func (m Model) View() tea.View {
 		}
 	} else {
 		end := m.offset + visible
-		if end > len(m.filtered) {
-			end = len(m.filtered)
+		if end > len(m.rows) {
+			end = len(m.rows)
 		}
 
 		// 计算 needs-you 数；> 0 时第一行渲染分组标题（如果在可视范围内）。
@@ -520,7 +852,17 @@ func (m Model) View() tea.View {
 		printedDivider := false
 
 		for i := m.offset; i < end; i++ {
-			fi := m.filtered[i]
+			row := m.rows[i]
+			fi := m.filtered[row.sessionIdx]
+
+			// window 行不参与 attention 分组：它属于上面那条 session 行的展开内容，
+			// 在它前面插 header / 分割线会把一个 session 的行拦腰劈开。
+			if row.kind == rowWindow {
+				b.WriteString(m.renderWindowRow(row, i == m.cursor))
+				b.WriteString("\n")
+				linesPrinted++
+				continue
+			}
 
 			// 在第一条 attention 行前插 "needs you" header
 			if !printedHeader && fi.item.decoration.Attention.Triggered {
@@ -719,6 +1061,19 @@ func (m Model) renderRow(fi filteredItem, isCursor bool) string {
 		body += "  " + tail
 	}
 	return body
+}
+
+// renderWindowRow 渲染一条 window 行。
+//
+// step 02 只保证「能渲染、光标能落上去」；缩进列位、活动标记与搜索高亮的完整规格
+// 由 step 03 的渲染契约补齐。这里刻意不渲染 ATTN/IDLE/RUN/WAIT 任何字符，
+// 也不留空白 cell 占位——留空会和「没有 Claude 的 session 行」撞脸。
+func (m Model) renderWindowRow(row visibleRow, isCursor bool) string {
+	cursorPrefix := "  "
+	if isCursor {
+		cursorPrefix = lipgloss.NewStyle().Foreground(colorCursor).Bold(true).Render("> ")
+	}
+	return cursorPrefix + fmt.Sprintf("  └ %d: %s", row.window.Index, row.window.Name)
 }
 
 // renderTail 在 attention 行末尾显示「完成多久」提示，便于用户判断紧迫度。

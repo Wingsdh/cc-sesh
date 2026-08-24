@@ -43,6 +43,9 @@ func NewPickerCommand(base *BaseDeps) *cobra.Command {
 			var pickerOpts picker.PickerOptions
 			pickerOpts.Dismisser = &claudeDismisser{store: deps.Attention}
 			pickerOpts.Killer = &tmuxKiller{tmux: deps.Tmux, attention: deps.Attention}
+			if deps.PickerUIState != nil {
+				pickerOpts.ExpandStore = deps.PickerUIState
+			}
 			if cmd.Flags().Changed("icons") {
 				showIcons := true
 				pickerOpts.ShowIcons = &showIcons
