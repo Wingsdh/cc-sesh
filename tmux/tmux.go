@@ -20,6 +20,9 @@ type Tmux interface {
 	// CapturePane 抓取任意 tmux 目标的当前屏幕内容（含 ANSI 颜色）。
 	// target 接受 tmux 的任意目标形态："sess" / "sess:3" / "sess:3.0"，原样透传给 -t。
 	CapturePane(target string) (string, error)
+	// ListWindowPanes 列出目标 window 内全部 pane 的序号（tmux 输出顺序）。
+	// target 形如 "sess:3"；失败时返回空切片 + nil（fail-soft，与 ListTmuxPanes 同款）。
+	ListWindowPanes(target string) ([]int, error)
 	NextWindow() (string, error)
 	SelectWindow(targetWindow string) (string, error)
 	SwitchOrAttach(name string, opts model.ConnectOpts) (string, error)

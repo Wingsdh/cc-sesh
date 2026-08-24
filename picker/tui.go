@@ -891,9 +891,16 @@ func (m Model) View() tea.View {
 	}
 	// 列表块补齐到 contentWidth()，否则短行会让预览块的左边缘参差不齐
 	listBlock := lipgloss.NewStyle().Width(m.contentWidth()).Render(list)
-	previewBlock := m.renderPreview(m.previewWidth(), m.visibleCount())
+	previewBlock := m.renderPreview(m.previewWidth(), m.previewHeight())
 	gap := lipgloss.NewStyle().Width(previewGap).Render("")
 	return tea.NewView(lipgloss.JoinHorizontal(lipgloss.Top, listBlock, gap, previewBlock))
+}
+
+// previewHeight 是预览块的高度预算。预览块与整个列表块并排（JoinHorizontal Top），
+// 从视图顶部一路可用到底，因此按终端高度给、不绑列表的 visibleCount()——
+// 后者有 15 行上限，会让高 popup 里预览下方大片留白。留 1 行余量防终端滚动。
+func (m Model) previewHeight() int {
+	return max(3, m.height-1)
 }
 
 // renderList 渲染左侧列表块。预览是否显示不影响它的任何一行——

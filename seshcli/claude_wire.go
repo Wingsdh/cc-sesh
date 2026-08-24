@@ -1,10 +1,13 @@
 package seshcli
 
 import (
+	"fmt"
 	"io/fs"
 	"log/slog"
 	"path/filepath"
 	"strings"
+
+	"github.com/charmbracelet/x/ansi"
 
 	"github.com/Wingsdh/cc-sesh/v2/claude/attention"
 	"github.com/Wingsdh/cc-sesh/v2/claude/live"
@@ -290,6 +293,9 @@ func (d *claudeDismisser) Dismiss(name string) error {
 
 // tmuxCapturer 把 tmux.CapturePane 适配为 picker.PaneCapturer，供预览分栏抓屏。
 // target 是任意 tmux 目标串（"sess" 或 "sess:3"），原样透传。
+//
+// window 含多个 pane 时逐个抓取并纵向拼接（pane 间加 dim 分隔线）——
+// capture-pane 只抓目标 window 的活动 pane，不拼接的话其余 pane 全部不可见。
 type tmuxCapturer struct {
 	tmux tmux.Tmux
 }
@@ -298,7 +304,37 @@ func (c *tmuxCapturer) Capture(target string) (string, error) {
 	if c.tmux == nil {
 		return "", nil
 	}
-	return c.tmux.CapturePane(target)
+	indexes, err := c.tmux.ListWindowPanes(target)
+	if err != nil || len(indexes) <= 1 {
+		// 单 pane / 枚举失败：退回原行为，只抓目标本身（即活动 pane）
+		return c.tmux.CapturePane(target)
+	}
+	parts := make([]string, 0, len(indexes)*2)
+	for _, idx := range indexes {
+		content, err := c.tmux.CapturePane(fmt.Sprintf("%s.%d", target, idx))
+		if err != nil {
+			continue
+		}
+		if len(parts) > 0 {
+			// dim 分隔线标出 pane 边界；宽度截断交给 renderPreview
+			parts = append(parts, fmt.Sprintf("\x1b[0m\x1b[2m── pane %d ──────────────────────────\x1b[0m", idx))
+		}
+		parts = append(parts, trimTrailingBlankLines(content))
+	}
+	if len(parts) == 0 {
+		return c.tmux.CapturePane(target)
+	}
+	return strings.Join(parts, "\n"), nil
+}
+
+// trimTrailingBlankLines 裁掉尾部视觉为空的行。capture-pane 按整个 pane 高度
+// 返回，内容贴顶的 pane 尾部是成片空行，不裁掉的话分隔线会被推到很远的下方。
+func trimTrailingBlankLines(content string) string {
+	lines := strings.Split(content, "\n")
+	for len(lines) > 0 && strings.TrimSpace(ansi.Strip(lines[len(lines)-1])) == "" {
+		lines = lines[:len(lines)-1]
+	}
+	return strings.Join(lines, "\n")
 }
 
 // tmuxKiller 把 tmux.KillSession 适配为 picker.Killer，便于 ctrl+d 直接 kill。
