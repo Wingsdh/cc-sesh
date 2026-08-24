@@ -288,6 +288,19 @@ func (d *claudeDismisser) Dismiss(name string) error {
 	return d.store.Ack(name)
 }
 
+// tmuxCapturer 把 tmux.CapturePane 适配为 picker.PaneCapturer，供预览分栏抓屏。
+// target 是任意 tmux 目标串（"sess" 或 "sess:3"），原样透传。
+type tmuxCapturer struct {
+	tmux tmux.Tmux
+}
+
+func (c *tmuxCapturer) Capture(target string) (string, error) {
+	if c.tmux == nil {
+		return "", nil
+	}
+	return c.tmux.CapturePane(target)
+}
+
 // tmuxKiller 把 tmux.KillSession 适配为 picker.Killer，便于 ctrl+d 直接 kill。
 // kill 后顺手 ack 一下 attention，避免幽灵 flag。
 type tmuxKiller struct {

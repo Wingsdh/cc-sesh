@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"image/color"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -134,6 +135,9 @@ type Model struct {
 	expanded     map[string]struct{}
 	tempExpanded map[string]struct{}
 	expandStore  ExpandStore
+
+	preview  previewState
+	capturer PaneCapturer
 }
 
 // srcIcon 返回 sesh 原本的来源 icon + ANSI 颜色。
@@ -226,6 +230,13 @@ func (m Model) WithExpandStore(store ExpandStore) Model {
 	return m
 }
 
+// WithCapturer 注入抓屏能力。传 nil → picker 不发起任何抓屏，预览区显示无目标说明，
+// 既有未注入 Capturer 的调用方行为完全不变。
+func (m Model) WithCapturer(c PaneCapturer) Model {
+	m.capturer = c
+	return m
+}
+
 func (m Model) Init() tea.Cmd {
 	return tea.Batch(m.focusCmd, m.fetchSessions())
 }
@@ -276,6 +287,34 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		m.applyFilter()
 		return m, nil
 
+	case previewTickMsg:
+		// 六步第 4 步：定时到达先校验序号。光标已经移走 → 直接丢弃，连抓屏都不发起。
+		if msg.seq != m.preview.seq || msg.target != m.preview.target {
+			return m, nil
+		}
+		if m.capturer == nil {
+			return m, nil
+		}
+		// 六步第 5 步：异步抓屏
+		return m, m.capturePreview(msg.seq, msg.target)
+
+	case previewResultMsg:
+		// 六步第 6 步：结果到达再校验序号与目标串。两道校验缺一不可——
+		// 只校验序号会让「离开又回到同一目标」的旧结果蒙混过关，
+		// 只校验目标串则挡不住同一目标的连续重取。
+		if msg.seq != m.preview.seq || msg.target != m.preview.target {
+			return m, nil
+		}
+		m.preview.loading = false
+		if msg.err != nil {
+			m.preview.err = msg.err.Error()
+			m.preview.content = ""
+		} else {
+			m.preview.content = msg.content
+			m.preview.err = ""
+		}
+		return m, nil
+
 	case tea.WindowSizeMsg:
 		m.width = msg.Width
 		m.height = msg.Height
@@ -307,31 +346,35 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		case "up", "ctrl+k", "shift+tab":
 			m.cursorUp(1)
-			return m, nil
+			return m, m.retargetPreview(false)
 
 		case "down", "ctrl+j", "tab":
 			m.cursorDown(1)
-			return m, nil
+			return m, m.retargetPreview(false)
 
 		case "right":
 			m.expandCurrent()
-			return m, nil
+			return m, m.retargetPreview(false)
 
 		case "left":
 			m.collapseCurrent()
-			return m, nil
+			return m, m.retargetPreview(false)
+
+		case "ctrl+r":
+			// 强制重取当前快照：无条件走完六步，旧结果因序号自增自然作废。
+			return m, m.retargetPreview(true)
 
 		case "ctrl+u":
 			m.cursorUp(m.visibleCount() / 2)
-			return m, nil
+			return m, m.retargetPreview(false)
 
 		case "pgdown":
 			m.cursorDown(m.visibleCount() / 2)
-			return m, nil
+			return m, m.retargetPreview(false)
 
 		case "pgup":
 			m.cursorUp(m.visibleCount() / 2)
-			return m, nil
+			return m, m.retargetPreview(false)
 
 		case "ctrl+a":
 			return m, m.switchMode(ModeAll)
@@ -379,6 +422,7 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		m.cursor = 0
 		m.offset = 0
+		return m, tea.Batch(cmd, m.retargetPreview(false))
 	}
 
 	return m, cmd
@@ -790,10 +834,30 @@ func (m Model) contentWidth() int {
 	if w < 30 {
 		w = 40
 	}
-	if w > 60 {
-		w = 60
+	if w > listMaxWidth {
+		w = listMaxWidth
 	}
 	return w
+}
+
+// 预览分栏的布局常量。previewMinTotal 是「终端够不够宽渲染预览」的唯一阈值。
+const (
+	previewGap      = 2                                           // 列表区与预览区的分隔间距
+	listMaxWidth    = 60                                          // 列表区宽度上限（维持现状）
+	previewMinWidth = 40                                          // 预览区下限
+	previewMinTotal = listMaxWidth + previewGap + previewMinWidth // 102：显示阈值
+)
+
+// showPreview 每帧现算，NEVER 缓存进 Model——
+// 缓存会让拉宽终端后预览回不来（既有 tea.WindowSizeMsg 就是唯一的恢复通道）。
+func (m Model) showPreview() bool {
+	return m.width >= previewMinTotal
+}
+
+// previewWidth 是预览块的宽度。width >= 102 时 contentWidth() 恒为 60，
+// 故 previewWidth() >= previewMinWidth 恒成立。
+func (m Model) previewWidth() int {
+	return m.width - m.contentWidth() - previewGap
 }
 
 // 颜色调色：尽量用 ANSI 数字，确保跨终端一致。
@@ -811,6 +875,20 @@ var (
 )
 
 func (m Model) View() tea.View {
+	list := m.renderList()
+	if !m.showPreview() {
+		return tea.NewView(list)
+	}
+	// 列表块补齐到 contentWidth()，否则短行会让预览块的左边缘参差不齐
+	listBlock := lipgloss.NewStyle().Width(m.contentWidth()).Render(list)
+	previewBlock := m.renderPreview(m.previewWidth(), m.visibleCount())
+	gap := lipgloss.NewStyle().Width(previewGap).Render("")
+	return tea.NewView(lipgloss.JoinHorizontal(lipgloss.Top, listBlock, gap, previewBlock))
+}
+
+// renderList 渲染左侧列表块。预览是否显示不影响它的任何一行——
+// visibleCount() 也不受预览影响，窄终端下的可见条数与改动前一致。
+func (m Model) renderList() string {
 	var b strings.Builder
 
 	b.WriteString("  " + m.filterInput.View())
@@ -889,7 +967,7 @@ func (m Model) View() tea.View {
 		}
 	}
 
-	return tea.NewView(b.String())
+	return b.String()
 }
 
 func renderHeader(label string) string {
@@ -929,16 +1007,37 @@ const (
 	colsTotalWidth   = colCellWidth*3 + colLastCellWidth // 19
 )
 
+// 徽章区留白与 window 行缩进。**三处渲染（列头 / 数据行 / 表格横线）必须读同一组常量**——
+// 任何一处写成 2 / 3 的字面量，改动时都会让竖向对齐悄悄散架。
+const (
+	badgeLeftPad     = 2 // 徽章区左内缩：ATTN 首字符与左侧内容之间的空格数
+	badgeRightGap    = 3 // 徽章区右间隔：WAIT 列末与 session 名之间（原为 1）
+	windowIndentStep = 2 // window 行在 session 名字列起点之上再缩进一级
+)
+
+// window 行的前缀与活动标记。
+const (
+	windowRowPrefix  = "└ "
+	windowActiveMark = " *"
+)
+
+// badgeBlockStart 是徽章区（含左内缩）之前占掉的列数：光标列 + 可选的来源图标列。
+// 列头与表格横线都从这里起算，保证三处对齐。
+func badgeBlockStart(showIcons bool) int {
+	leftPad := 2 // 光标列
+	if showIcons {
+		leftPad += 2 // 来源图标列
+	}
+	return leftPad + badgeLeftPad
+}
+
 // 表格列布局：每个数字 cell 4 字符宽（居中对齐），后跟 1 字符分隔（最后列无尾分隔）。
 const colNumWidth = 4
 
 // renderTableTop 输出表格上方的横线，把表格区与 hotkey 区视觉分隔开。
 // 横线长度 = contentWidth - leftPad，覆盖整张表格（含 name 区）。
 func renderTableTop(showIcons bool, contentWidth int) string {
-	leftPad := 2
-	if showIcons {
-		leftPad += 2
-	}
+	leftPad := badgeBlockStart(showIcons)
 	lineLen := contentWidth - leftPad
 	if lineLen < colsTotalWidth {
 		lineLen = colsTotalWidth
@@ -952,10 +1051,7 @@ func renderTableTop(showIcons bool, contentWidth int) string {
 // 左侧 padding = cursor(2) + src_icon(showIcons ? 2 : 0)，刚好对齐到行内 ATTN 列起点。
 // 标题用 bold 默认前景色，比 dim 更醒目。
 func renderColumnHeaders(showIcons bool) string {
-	leftPad := 2
-	if showIcons {
-		leftPad += 2
-	}
+	leftPad := badgeBlockStart(showIcons)
 	style := lipgloss.NewStyle().Bold(true)
 	cell := func(label string, last bool) string {
 		s := style.Width(colNumWidth).Align(lipgloss.Center).Render(label)
@@ -1045,7 +1141,7 @@ func (m Model) renderRow(fi filteredItem, isCursor bool) string {
 	// 3. ATTN/IDLE/RUN/WAIT 4 列徽章（19 字符）；隐藏状态表时整列省略，让 name 紧贴 src icon
 	var countsCol string
 	if m.showSessionStateTable() {
-		countsCol = renderRowCounts(dec) + " "
+		countsCol = strings.Repeat(" ", badgeLeftPad) + renderRowCounts(dec) + strings.Repeat(" ", badgeRightGap)
 	}
 
 	// 4. name 列（fuzzy 高亮）
@@ -1063,17 +1159,41 @@ func (m Model) renderRow(fi filteredItem, isCursor bool) string {
 	return body
 }
 
-// renderWindowRow 渲染一条 window 行。
+// nameColStart 是 session 名列相对「光标列之后」的起点列数。
+// 状态表隐藏时徽章区整块不存在，名字紧贴来源图标。
+func (m Model) nameColStart() int {
+	start := 0
+	if m.showIcons {
+		start += 2
+	}
+	if m.showSessionStateTable() {
+		start += badgeLeftPad + colsTotalWidth + badgeRightGap
+	}
+	return start
+}
+
+// renderWindowRow 渲染一条 window 行：光标列 + 缩进 + "└ 序号: 名字"（活动 window 加标记）。
 //
-// step 02 只保证「能渲染、光标能落上去」；缩进列位、活动标记与搜索高亮的完整规格
-// 由 step 03 的渲染契约补齐。这里刻意不渲染 ATTN/IDLE/RUN/WAIT 任何字符，
-// 也不留空白 cell 占位——留空会和「没有 Claude 的 session 行」撞脸。
+// NEVER 渲染 ATTN/IDLE/RUN/WAIT 任何字符，也 NEVER 用空白 cell 占位对齐——
+// 留空占位会与「没有 Claude 的 session 行」撞脸，用户分不清哪行是 window。
 func (m Model) renderWindowRow(row visibleRow, isCursor bool) string {
 	cursorPrefix := "  "
 	if isCursor {
 		cursorPrefix = lipgloss.NewStyle().Foreground(colorCursor).Bold(true).Render("> ")
 	}
-	return cursorPrefix + fmt.Sprintf("  └ %d: %s", row.window.Index, row.window.Name)
+
+	indent := strings.Repeat(" ", m.nameColStart()+windowIndentStep)
+
+	// 搜索高亮与 session 名同款，走既有 highlightMatches
+	nameStyle := lipgloss.NewStyle()
+	matchStyle := lipgloss.NewStyle().Foreground(colorMatch).Bold(true)
+	name := highlightMatches(row.window.Name, row.matchedIndexes, matchStyle, nameStyle)
+
+	body := cursorPrefix + indent + windowRowPrefix + strconv.Itoa(row.window.Index) + ": " + name
+	if row.window.Active {
+		body += windowActiveMark
+	}
+	return body
 }
 
 // renderTail 在 attention 行末尾显示「完成多久」提示，便于用户判断紧迫度。

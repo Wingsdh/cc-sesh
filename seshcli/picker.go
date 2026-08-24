@@ -8,7 +8,6 @@ import (
 	"github.com/Wingsdh/cc-sesh/v2/picker"
 )
 
-
 func NewPickerCommand(base *BaseDeps) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:     "picker",
@@ -45,6 +44,9 @@ func NewPickerCommand(base *BaseDeps) *cobra.Command {
 			pickerOpts.Killer = &tmuxKiller{tmux: deps.Tmux, attention: deps.Attention}
 			if deps.PickerUIState != nil {
 				pickerOpts.ExpandStore = deps.PickerUIState
+			}
+			if deps.Tmux != nil {
+				pickerOpts.Capturer = &tmuxCapturer{tmux: deps.Tmux}
 			}
 			if cmd.Flags().Changed("icons") {
 				showIcons := true
