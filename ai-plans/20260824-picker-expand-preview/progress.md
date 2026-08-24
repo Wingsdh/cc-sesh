@@ -27,5 +27,5 @@ NEVER 用 `~/go/bin/mockery`（v2.51.1，跑 v3 配置会 panic）。
 | --- | --- | --- | --- | --- | --- | --- |
 | 1 | 01-window-data | done | 23 断言全红 | 第 1 轮通过 | review_pass self R01 | 2 条非阻塞建议判定不采纳；指标2: ok；行为 commit 4c4b123 |
 | 2 | 02-visible-rows | done | 61 场景全红 | 第 1 轮通过 | review_pass self R01 | 1 条 test_bug 经订正（reviewer 复核判定正确）；reviewer 指出的覆盖缺口已补测 commit 6795973；指标2: ok；行为 commit 8607dd3 |
-| 3 | 03-render-preview | done | 49 场景全红 | 第 1 轮通过（44/49 直接绿） | R01 未回（收口时仍在审） | 5 条列位 test_bug 经订正，writer 独立复核全部认同；`ansi` 转直接依赖；指标2: ok；行为 commit 5182738 |
-| 4 | 04-connect-window | done | 27+2 场景全红 | 第 1 轮通过 | R01 未回（收口时仍在审） | 零 test_bug；策略链顺序补测并做变异验证；README ×2 7→10 行；指标2: ok；行为 commit e7911b1 |
+| 3 | 03-render-preview | done | 49 场景全红 | 第 1 轮通过（44/49 直接绿） | review_pass self R01（收口后回信） | 5 条列位 test_bug 经订正，writer + reviewer 均独立复核认同；review 另指出 1 条重言式断言，已修 commit 666f523；`ansi` 转直接依赖；指标2: ok；行为 commit 5182738 |
+| 4 | 04-connect-window | done | 27+2 场景全红 | 第 1 轮通过 | review_pass self R01（收口后回信） | 零 test_bug；策略链顺序补测并做变异验证（reviewer 独立重做一遍确认）；README ×2 7→10 行；指标2: ok；行为 commit e7911b1 |
