@@ -834,18 +834,28 @@ func (m Model) contentWidth() int {
 	if w < 30 {
 		w = 40
 	}
-	if w > listMaxWidth {
-		w = listMaxWidth
+	if m.showPreview() {
+		// 分栏时列表按比例分宽：占 listRatio%，但不低于基准 60 列。
+		// 固定 60 列会让宽终端下多余宽度全被预览吃掉，列表显得越来越挤；
+		// 按比例分配后列表/预览观感稳定在约 4:6，与终端多宽无关。
+		if p := m.width * listRatio / 100; p > listBaseWidth {
+			return p
+		}
+		return listBaseWidth
+	}
+	if w > listBaseWidth {
+		w = listBaseWidth
 	}
 	return w
 }
 
 // 预览分栏的布局常量。previewMinTotal 是「终端够不够宽渲染预览」的唯一阈值。
 const (
-	previewGap      = 2                                           // 列表区与预览区的分隔间距
-	listMaxWidth    = 60                                          // 列表区宽度上限（维持现状）
-	previewMinWidth = 40                                          // 预览区下限
-	previewMinTotal = listMaxWidth + previewGap + previewMinWidth // 102：显示阈值
+	previewGap      = 2                                            // 列表区与预览区的分隔间距
+	listBaseWidth   = 60                                           // 列表区基准宽：窄终端的上限，分栏时的下限
+	listRatio       = 40                                           // 分栏时列表区占终端总宽的百分比
+	previewMinWidth = 40                                           // 预览区下限
+	previewMinTotal = listBaseWidth + previewGap + previewMinWidth // 102：显示阈值
 )
 
 // showPreview 每帧现算，NEVER 缓存进 Model——
@@ -854,8 +864,8 @@ func (m Model) showPreview() bool {
 	return m.width >= previewMinTotal
 }
 
-// previewWidth 是预览块的宽度。width >= 102 时 contentWidth() 恒为 60，
-// 故 previewWidth() >= previewMinWidth 恒成立。
+// previewWidth 是预览块的宽度。width >= 102 时 contentWidth() 不低于 60 且
+// 不超过 width 的 listRatio%，故 previewWidth() >= previewMinWidth 恒成立。
 func (m Model) previewWidth() int {
 	return m.width - m.contentWidth() - previewGap
 }

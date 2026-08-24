@@ -136,6 +136,7 @@ Inside the picker (no `fzf-tmux` wrapper required):
 
 The preview pane renders only when the terminal is at least 102 columns wide
 (list 60 + gap 2 + preview 40); it comes back automatically when you widen the terminal.
+On wider terminals the list takes 40% of the width (min 60 columns) and the preview the rest.
 
 ## Shell completion
 

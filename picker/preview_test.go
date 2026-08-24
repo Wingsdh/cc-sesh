@@ -16,13 +16,14 @@ package picker
 //	renderTableTop 横线长度       contentWidth 极小(边界)        不短于 colsTotalWidth(19)         tc-a29
 //	showSessionStateTable()       false(边界)                    countsCol 为空串，留白不生效       tc-a30
 //	showPreview()                 width=101(下边界外) / 102(下边界内) false / true                 布局约束
-//	previewWidth()                width=102(边界)/120/200        40 / 58 / 138                     tc-a75
+//	previewWidth()                width=102(边界)/120/150(换挡)/160/200  40/58/88/94/118（列表40%下限60）  tc-a75
 //	visibleCount()                预览显示/隐藏两态               取值相同                          tc-a76
 //	取快照六步                    happy path / 4 种丢弃分支      见 Section D                      tc-a32~a39/a73
 //	previewTarget                 session行有active/无active(退回最小Index)/window表空/非tmux/window行/空列表/Capturer=nil  见 Section E  行为契约+tc-a74
 //	renderPreview 截断             行宽>previewWidth(上边界外)   宽度<=previewWidth 且 ANSI 完整   tc-a68
 //	renderPreview 截断             行宽==previewWidth(边界)      不截断                            tc-a71
 //	renderPreview 行数             超高度(边界外)                 保留末尾若干行                    tc-a69
+//	renderPreview 尾部空行         内容贴顶+成片空尾行            先裁空尾行再保留末尾              抓屏回归
 //
 // pairwise：window 行缩进公式只有 2 个布尔维度（showIcons × 状态表可见），
 // 2×2=4 组合直接穷举（TestRenderWindowRow_IndentMatchesNameColStartPlusStep），
@@ -416,20 +417,25 @@ func TestShowPreview_TogglesWithWindowSizeAndNeverCached(t *testing.T) {
 }
 
 func TestPreviewWidth_Formula(t *testing.T) {
-	// tc-a75：previewWidth() = width - contentWidth() - previewGap；
-	// width>=102 时 contentWidth() 恒为 60，故 previewWidth()>=40 恒成立。
+	// tc-a75（比例分宽版）：previewWidth() = width - contentWidth() - previewGap；
+	// 分栏时 contentWidth() = max(listBaseWidth, width*listRatio%)，
+	// 故列表 40% / 预览约 60%，且 previewWidth()>=40 恒成立。
 	cases := []struct {
-		width int
-		want  int
+		width    int
+		wantList int
+		want     int
 	}{
-		{102, 40}, // 边界：下限
-		{120, 58}, // tc-a75 原题：120 → 列表60 + 间距2 + 预览58
-		{200, 138},
+		{102, 60, 40},  // 边界：40% < 60 → 列表取下限 60，预览取下限 40
+		{120, 60, 58},  // tc-a75 原题：40%=48 < 60 → 列表 60 + 间距 2 + 预览 58
+		{150, 60, 88},  // 恰好 40% == 60：比例与下限的换挡点
+		{160, 64, 94},  // 40% 起作用：列表 64，预览 94
+		{200, 80, 118}, // 列表 80 / 预览 118 ≈ 4:6
 	}
 	for _, tc := range cases {
 		m := newPreviewModel(t, nil)
 		m.width = tc.width
-		assert.Equal(t, tc.want, m.previewWidth(), "width=%d", tc.width)
+		assert.Equal(t, tc.wantList, m.contentWidth(), "contentWidth width=%d", tc.width)
+		assert.Equal(t, tc.want, m.previewWidth(), "previewWidth width=%d", tc.width)
 		assert.GreaterOrEqual(t, m.previewWidth(), previewMinWidth)
 	}
 }
@@ -864,6 +870,30 @@ func TestRenderPreview_KeepsTrailingLinesWhenContentExceedsHeight(t *testing.T) 
 	}
 	for i := 21; i <= 30; i++ {
 		assert.Contains(t, rendered, "line"+strconv.Itoa(i), "应保留第 %d 行", i)
+	}
+}
+
+func TestRenderPreview_StripsTrailingBlankLinesBeforeKeepingTail(t *testing.T) {
+	// 抓屏回归：capture-pane 返回整个 pane 高度，内容贴顶的 pane 尾部是成片空行。
+	// 若不先裁空尾行，「保留末尾 height 行」留下的全是空白，真内容被裁走。
+	// 构造：5 行真内容 + 25 行空行（含纯空格和带 ANSI 的"视觉空行"），高度 10。
+	lines := make([]string, 0, 30)
+	for i := 1; i <= 5; i++ {
+		lines = append(lines, "content"+strconv.Itoa(i))
+	}
+	for range 24 {
+		lines = append(lines, "")
+	}
+	lines = append(lines, "\x1b[0m   ") // 带转义与空格的视觉空行也要算空
+	content := strings.Join(lines, "\n")
+
+	m := newPreviewModel(t, &fakeCapturer{})
+	m.cursor = idxProjA
+	firePreviewToContent(t, &m, content)
+
+	rendered := ansi.Strip(m.renderPreview(40, 10))
+	for i := 1; i <= 5; i++ {
+		assert.Contains(t, rendered, "content"+strconv.Itoa(i), "真内容第 %d 行不应被空尾行挤掉", i)
 	}
 }
 

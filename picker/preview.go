@@ -153,6 +153,13 @@ func (m Model) renderPreview(width, height int) string {
 		lines = strings.Split(m.preview.content, "\n")
 	}
 
+	// 抓屏（capture-pane）返回的是整个 pane 高度：内容贴顶的 pane 尾部是成片空行。
+	// 先裁掉视觉上为空的尾行，再做「保留末尾」，否则留下来的全是空白，
+	// 真内容反而被裁走，预览看起来只剩最后一点点。
+	for len(lines) > 0 && strings.TrimSpace(ansi.Strip(lines[len(lines)-1])) == "" {
+		lines = lines[:len(lines)-1]
+	}
+
 	// 超高时保留末尾若干行：终端里最新的输出在底部，那才是用户想看的
 	if len(lines) > height {
 		lines = lines[len(lines)-height:]
