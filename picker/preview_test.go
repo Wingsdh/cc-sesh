@@ -442,14 +442,25 @@ func TestPreviewWidth_Formula(t *testing.T) {
 
 func TestPreviewHeight_UsesTerminalHeightNotVisibleCountCap(t *testing.T) {
 	// 预览块与整个列表块并排，从视图顶部可用到底：高度按终端给（留 1 行余量），
-	// 不绑 visibleCount()——后者有 15 行上限，高 popup 里预览下方会大片留白。
+	// 不绑 visibleCount()——后者要扣列表上方的 chrome 行数，预览没有这份开销。
 	m := newPreviewModel(t, nil)
 	m.height = 40
 	assert.Equal(t, 39, m.previewHeight())
-	assert.Greater(t, m.previewHeight(), m.visibleCount(), "预览高度不应被列表的 15 行上限拖住")
+	assert.Greater(t, m.previewHeight(), m.visibleCount(), "预览高度不应被列表的 chrome 预算拖住")
 
 	m.height = 0 // WindowSizeMsg 未到
 	assert.Equal(t, 3, m.previewHeight(), "高度未知时用下限兜底")
+}
+
+func TestVisibleCount_ScalesWithTerminalHeightWithoutCap(t *testing.T) {
+	// 列表行数随终端高度伸缩，不再有 15 行 cap（70% 高 popup 时代的遗产）。
+	// newPreviewModel 的夹具无 Claude 实例 → 状态表隐藏，chrome = 12-2 = 10
+	m := newPreviewModel(t, nil)
+	m.height = 40
+	assert.Equal(t, 30, m.visibleCount(), "高 popup 下列表应吃满可用高度（40 - chrome 10）")
+
+	m.height = 22
+	assert.Equal(t, 12, m.visibleCount(), "矮终端下仍按 height-chrome 算")
 }
 
 func TestVisibleCount_UnaffectedByPreviewVisibility(t *testing.T) {

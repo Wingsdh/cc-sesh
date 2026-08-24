@@ -803,12 +803,11 @@ func (m Model) visibleCount() int {
 	if !m.showSessionStateTable() {
 		chrome -= 2 // 同时隐藏 table-top 和列头时让出两行
 	}
+	// 列表行数随终端高度伸缩，不设固定上限——旧的 15 行 cap 是 70% 高
+	// popup 时代的遗产，高 popup 里会让列表下方大片留白。
 	available := m.height - chrome
 	if available < 1 {
 		available = 3
-	}
-	if available > 15 {
-		available = 15
 	}
 	return available
 }
@@ -898,7 +897,7 @@ func (m Model) View() tea.View {
 
 // previewHeight 是预览块的高度预算。预览块与整个列表块并排（JoinHorizontal Top），
 // 从视图顶部一路可用到底，因此按终端高度给、不绑列表的 visibleCount()——
-// 后者有 15 行上限，会让高 popup 里预览下方大片留白。留 1 行余量防终端滚动。
+// 后者要扣掉列表上方的 chrome 行数，预览没有这份开销。留 1 行余量防终端滚动。
 func (m Model) previewHeight() int {
 	return max(3, m.height-1)
 }
