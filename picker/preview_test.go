@@ -201,13 +201,17 @@ func TestBadgeAlignment_LeftPadAndRightGapMeetBaselineAndAreConsistent(t *testin
 	rowBlockStart := nameCol - colsTotalWidth - badgeRightGap
 
 	// showIcons=false 时 cursorPrefix(2) 之后立刻是徽章区，左内缩 = 块起点 - 2。
-	leftPadFromHeader := stripAndFind(header, "ATTN") - 2
+	blockStartFromHeader := stripAndFind(header, "ATTN")
+	leftPadFromHeader := blockStartFromHeader - 2
 	leftPadFromRow := rowBlockStart - 2
 	assert.GreaterOrEqual(t, leftPadFromHeader, 2, "左内缩应 >= 2 空格宽")
 	assert.Equal(t, leftPadFromHeader, leftPadFromRow, "列头与数据行的左内缩应一致")
 
-	// 右间隔 = 会话名起始列位 - (块起点 + colsTotalWidth)
-	rightGap := nameCol - (rowBlockStart + colsTotalWidth)
+	// 右间隔 = 会话名起始列位 - (块起点 + colsTotalWidth)。
+	// 块起点必须取**列头实测**的那个，不能用 rowBlockStart——后者是拿 badgeRightGap
+	// 反推出来的，代入化简后 rightGap 会恒等于 badgeRightGap，成为一条永远为真的
+	// 重言式，生产代码把 badgeRightGap 换成字面量 1 也测不出来。
+	rightGap := nameCol - (blockStartFromHeader + colsTotalWidth)
 	assert.GreaterOrEqual(t, rightGap, 3, "右间隔应 >= 3 空格宽（原为 1）")
 }
 
