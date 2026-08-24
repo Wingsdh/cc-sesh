@@ -1,0 +1,927 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>picker-expand-preview · TDD Plan</title>
+<style>
+  :root {
+    color-scheme: light dark;
+    --bg: #ffffff;
+    --text: #222222;
+    --text-secondary: #555555;
+    --text-muted: #666666;
+    --border: #dddddd;
+    --th-bg: #f4f6f8;
+    --code-bg: #f4f6f8;
+    --code-text: #222222;
+    --pre-bg: #1e1e1e;
+    --pre-text: #f5f5f5;
+    --accent: #2B7FFF;
+    --contract-bg: #f9fafb;
+    --contract-text: #222222;
+    --contract-border: #38a169;
+    --alert-bg: #fde8e8;
+    --alert-text: #6b1010;
+    --alert-border: #c81e1e;
+    --pill-default-bg: #e8f1ff;
+    --pill-default-text: #2B7FFF;
+    --pill-warn-bg: #fff5e6;
+    --pill-warn-text: #b35a00;
+    --pill-danger-bg: #fde8e8;
+    --pill-danger-text: #c81e1e;
+    --pill-ok-bg: #e6f5ec;
+    --pill-ok-text: #1f7a3e;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #1a1a1a;
+      --text: #e8e8e8;
+      --text-secondary: #b0b0b0;
+      --text-muted: #999999;
+      --border: #3a3a3a;
+      --th-bg: #2a2a2a;
+      --code-bg: #2a2a2a;
+      --code-text: #f5f5f5;
+      --pre-bg: #0d0d0d;
+      --pre-text: #f5f5f5;
+      --accent: #4A90D9;
+      --contract-bg: #232628;
+      --contract-text: #e8e8e8;
+      --contract-border: #4caf7a;
+      --alert-bg: #3a1f1f;
+      --alert-text: #ffb3b3;
+      --alert-border: #e57373;
+      --pill-default-bg: #1f2f4a;
+      --pill-default-text: #82b1ff;
+      --pill-warn-bg: #3a2a14;
+      --pill-warn-text: #ffb866;
+      --pill-danger-bg: #3a1f1f;
+      --pill-danger-text: #ff8a80;
+      --pill-ok-bg: #1f3a2a;
+      --pill-ok-text: #6bcf8f;
+    }
+  }
+  body { font-family: -apple-system, "Segoe UI", sans-serif; max-width: 980px; margin: 32px auto; padding: 0 24px; color: var(--text); background: var(--bg); line-height: 1.55; }
+  h1 { border-bottom: 2px solid var(--accent); padding-bottom: 8px; color: var(--text); }
+  h2 { margin-top: 36px; border-left: 4px solid var(--accent); padding-left: 10px; color: var(--text); }
+  h3 { margin-top: 22px; color: var(--text); }
+  h4 { margin-top: 16px; color: var(--text-secondary); }
+  p, li { color: var(--text); }
+  blockquote { color: var(--text); border-left: 3px solid var(--border); padding-left: 12px; margin-left: 0; }
+  a { color: var(--accent); }
+  table { border-collapse: collapse; width: 100%; margin: 10px 0; font-size: 14px; color: var(--text); }
+  th, td { border: 1px solid var(--border); padding: 6px 10px; text-align: left; vertical-align: top; }
+  th { background: var(--th-bg); color: var(--text); }
+  code { background: var(--code-bg); color: var(--code-text); padding: 1px 6px; border-radius: 3px; font-size: 13px; }
+  pre { background: var(--pre-bg); color: var(--pre-text); padding: 12px; border-radius: 4px; overflow-x: auto; font-size: 13px; line-height: 1.45; }
+  pre code { background: transparent; color: var(--pre-text); padding: 0; }
+  .meta { color: var(--text-muted); font-size: 14px; }
+  .pill { display: inline-block; padding: 2px 8px; border-radius: 12px; font-size: 12px; background: var(--pill-default-bg); color: var(--pill-default-text); margin-right: 6px; }
+  .pill.warn { background: var(--pill-warn-bg); color: var(--pill-warn-text); }
+  .pill.danger { background: var(--pill-danger-bg); color: var(--pill-danger-text); }
+  .pill.ok { background: var(--pill-ok-bg); color: var(--pill-ok-text); }
+  .pill.missing { background: var(--pill-danger-bg); color: var(--pill-danger-text); font-weight: 600; }
+  section[data-section] { margin-top: 18px; }
+  .contract { background: var(--contract-bg); color: var(--contract-text); border-left: 3px solid var(--contract-border); padding: 10px 14px; margin: 10px 0; }
+  .contract pre { background: var(--pre-bg); }
+  .alert-missing { background: var(--alert-bg); color: var(--alert-text); border-left: 4px solid var(--alert-border); padding: 12px 14px; margin: 14px 0; }
+  img.scenario { max-width: 260px; border: 1px solid var(--border); border-radius: 4px; }
+  figure { display: inline-block; margin: 8px 12px 8px 0; }
+  figcaption { font-size: 12px; color: var(--text-muted); text-align: center; }
+</style>
+</head>
+<body>
+<main data-agent="planning-development" data-status="plan_ready" data-feature="picker-expand-preview">
+
+<h1>picker-expand-preview · 状态表留白 + session 折叠展开 + 右侧预览分栏</h1>
+<p class="meta">
+  <span class="pill">2026-08-24</span>
+  <span class="pill">Go 1.25 CLI/TUI（bubbletea v2 / lipgloss v2）</span>
+  <span class="pill">仓库 /Users/promelo/Workspace/cc-sesh</span>
+  <span class="pill">分支 bay-fsd/job-1</span>
+  <span class="pill">4 steps · 约 1110 行非测试代码</span>
+</p>
+
+<!-- ============================================================ -->
+<section data-section="requirement-context">
+<h2>1. 需求上下文</h2>
+
+<h3>1.1 原始需求</h3>
+<blockquote>
+给 cc-sesh 的 picker 做两件事：<strong>把 Claude 状态表的左右两侧撑开</strong>，让 <code>ATTN IDLE RUN WAIT</code> 徽章区成为视觉上独立的一块；<strong>给 session 加折叠 / 展开</strong>，展开后能看到里面的 window 列表，光标停在哪一行，<strong>右侧分栏就显示那一屏的画面</strong>，回车可以直接落到具体 window。附带：搜索关键词同时匹配 window 名（命中则该 session 临时展开）、展开状态本地持久化（与 ATTN 同款存储但独立文件）、README hotkey 表补 3 个按键。
+</blockquote>
+<p class="meta">来源：作业委托说明 <code>/Users/promelo/Workspace/sesh-harness/brief.md</code> §要做什么 + PRD §需求简述。</p>
+
+<h3>1.2 提供的文档</h3>
+<table>
+  <tr><th>类型</th><th>来源（本地绝对路径）</th><th>用途</th></tr>
+  <tr><td>PRD</td><td><code>/Users/promelo/Workspace/sesh-harness/refs/01-prd.md</code></td><td>形态基线、8 个页面状态、留白验收口径、按键总览、展开记忆规则</td></tr>
+  <tr><td>技术方案</td><td><code>/Users/promelo/Workspace/sesh-harness/refs/02-tech-plan.md</code></td><td><strong>决策与边界的真源</strong>：改动覆盖清单 17 项、存量流程变更、关键取舍</td></tr>
+  <tr><td>技术方案详设</td><td><code>/Users/promelo/Workspace/sesh-harness/refs/03-tech-detail.md</code></td><td><strong>执行细节</strong>：留白常量、可见行模型、两个展开集合、预览六步、连接判定四条、持久化文件形态</td></tr>
+  <tr><td>作业委托说明</td><td><code>/Users/promelo/Workspace/sesh-harness/brief.md</code></td><td>验收标准 17 项 + 硬性契约 8 条 + 门禁 + 边界</td></tr>
+  <tr><td>事务任务书</td><td><code>/Users/promelo/Workspace/sesh-harness/.bay-fsd/jobs/job-1/panes/plan-a1/cmd.md</code></td><td>项目现状核实结论、构建与测试前置、NEVER 清单</td></tr>
+</table>
+<p class="meta">在线版（飞书知识库）仅备查，本计划与后续实现<strong>一律读本地文件</strong>，不拉在线文档。</p>
+
+<h3>1.3 用户提的明确要求</h3>
+
+<h4>MUST（硬性契约，详设已定，不得自行改口径）</h4>
+<ul>
+  <li><span class="pill danger">MUST</span> 留白：<code>ATTN</code> 首字符与左侧内容之间 <strong>≥ 2 空格</strong>；<code>WAIT</code> 列末字符与 session 名之间 <strong>≥ 3 空格</strong>（现为 1）。列头 / 数据行 / 表格横线<strong>三处共用同一组常量</strong>。状态表整块隐藏时留白不生效（来源 brief §二.1 + 详设「状态表留白」）</li>
+  <li><span class="pill danger">MUST</span> 预览布局：分隔间距 <strong>2 列</strong>、列表区上限 <strong>60 列</strong>、预览下限 <strong>40 列</strong>、显示阈值 = <strong>102 列</strong>；宽度不足整块不渲染，拉宽后自动恢复，<strong>不缓存判定结果</strong>（来源 brief §二.2 + 详设「预览分栏 · 布局」）</li>
+  <li><span class="pill danger">MUST</span> 取快照六步：清空并置读取中（<strong>要渲染读取中占位</strong>）→ 序号自增 → 150ms 定时 → <strong>定时到达校验序号</strong> → 异步抓屏 → <strong>结果到达再校验序号与目标串</strong>。两道校验缺一不可（来源 brief §二.3 + 详设「取快照」）</li>
+  <li><span class="pill danger">MUST</span> 抓屏保留 ANSI 颜色；截断走 <code>charmbracelet/x/ansi</code>（indirect 转 direct）；超高时保留末尾行；每行渲染前重置样式（来源 brief §二.4）</li>
+  <li><span class="pill danger">MUST</span> connector window 策略<strong>四条判定全满足才认领</strong>：仅一个冒号 / 冒号后纯数字 / 会话名在 tmux 会话列表中存在 / 该序号存在于该会话的 window 列表。任一不满足则放行给后续策略（来源 brief §二.5 + 详设「connector 策略」）</li>
+  <li><span class="pill danger">MUST</span> 折叠记忆：独立 JSON 文件，带 <code>version</code>，原子写；<strong>仅手动 <code>→</code>/<code>←</code> 写盘</strong>，搜索临时展开不写盘；读失败 / 版本不认识当空集合（来源 brief §二.6 + 详设「折叠记忆持久化」）</li>
+  <li><span class="pill danger">MUST</span> 可见行重算后<strong>必须夹紧 cursor 与 offset</strong>（来源 brief §二.7 + 详设「可见行」）</li>
+  <li><span class="pill danger">MUST</span> window 行<strong>不渲染</strong> ATTN/IDLE/RUN/WAIT，也<strong>不留空占位</strong>（来源 brief §二.8 + 详设「window 行渲染规格」）</li>
+  <li><span class="pill danger">MUST</span> 命令入口拿到选中结果后<strong>先按冒号拆出 session 名再 Ack</strong>，然后把完整目标串交给 <code>Connect</code>（来源 brief §一.16 + 详设「ATTN 确认」）</li>
+  <li><span class="pill danger">MUST</span> 技术方案「改动覆盖清单」17 项<strong>逐项落地</strong>，在 §4.2 表里逐条可对应（来源 brief §一）</li>
+</ul>
+
+<h4>NEVER（硬约束，逐条落到 step 行为契约）</h4>
+<ul>
+  <li><span class="pill danger">NEVER</span> 改 <code>Pick()</code> 的公开签名——选中结果沿用字符串，window 目标格式是 <code>session:index</code></li>
+  <li><span class="pill danger">NEVER</span> 给 window 行加 ATTN/IDLE/RUN/WAIT 徽章，也不给它留空占位对齐</li>
+  <li><span class="pill danger">NEVER</span> 做预览自动轮询</li>
+  <li><span class="pill danger">NEVER</span> 在 window 行支持 kill / dismiss</li>
+  <li><span class="pill danger">NEVER</span> 做 window 重命名 / 新建 / 移动（window 行只读）</li>
+  <li><span class="pill danger">NEVER</span> 让非 tmux 来源（zoxide / config / find）的项可展开或有预览</li>
+  <li><span class="pill danger">NEVER</span> 把折叠记忆写进 <code>attention.json</code>——必须独立文件</li>
+  <li><span class="pill danger">NEVER</span> 改 attention 判定逻辑、Claude 状态采集方式、session 命名策略</li>
+  <li><span class="pill danger">NEVER</span> 按字节或按 rune 截断带 ANSI 的预览内容——必须走 <code>charmbracelet/x/ansi</code></li>
+  <li><span class="pill danger">NEVER</span> 在仓库里留未提交的工具 / 临时文件（工作区要始终干净；mock 文件已在 <code>.gitignore</code> 的 <code>mock_*</code> 里，属例外）</li>
+  <li><span class="pill danger">NEVER</span> push、NEVER 开 PR——只在特性分支 <code>bay-fsd/job-1</code> commit</li>
+</ul>
+
+<h4>SHOULD</h4>
+<ul>
+  <li><span class="pill warn">SHOULD</span> window 列表在<strong>打开 picker 时一次性全量读取</strong>（<code>list-windows -a</code>），展开时直接取用；列表可能比 tmux 实际状态滞后数秒，PRD 已接受（来源 技术方案 §关键决策 1）</li>
+  <li><span class="pill warn">SHOULD</span> 重复目标不重取快照：光标离开又回到同一目标时沿用已取快照，只有 <code>Ctrl-r</code> 强制重取（来源 PRD §预览规则）</li>
+  <li><span class="pill warn">SHOULD</span> window 行渲染 <code>└ &lt;序号&gt;: &lt;window 名&gt;</code>，活动 window 名后加标记符；命中字符高亮方式与 session 名一致（来源 详设「window 行渲染规格」）</li>
+  <li><span class="pill warn">SHOULD</span> 新增逻辑要有对应测试：可见行构建、展开集合分离、connector 策略判定、留白常量、防抖序号丢弃（来源 brief §三门禁）</li>
+</ul>
+
+<h3>1.4 范围界定</h3>
+<table>
+  <tr><th>In-Scope</th><td>
+    状态表留白（三处渲染共用常量）；可见行两级模型（session 行 + window 行）与光标 / 滚动穿行；手动展开集合 + 搜索临时展开集合（分离）；展开记忆独立 JSON 持久化；右侧预览分栏（102 列阈值 + 150ms 防抖 + 双序号校验 + ANSI 感知截断 + <code>Ctrl-r</code> 重取）；搜索匹配范围扩到 window 名；<code>tmux list-windows -a</code> 全量拉取；<code>CapturePane</code> 目标参数放宽；connector <code>tmux-window</code> 策略；picker 命令入口拆名后 Ack；README / README.zh-cn hotkey 表与预览显示条件说明。
+  </td></tr>
+  <tr><th>Out-of-Scope</th><td>
+    Claude 状态采集方式与 ATTN 判定逻辑；Claude 实例定位到 window 粒度（因此 window 行无徽章）；session 命名策略；配置文件结构（本次不加任何配置项，预览显示与否是宽度自适应、不做开关）；window 的重命名 / 新建 / 移动；预览轮询与自动刷新；window 行的 kill / dismiss；非 tmux 来源项的展开与预览；折叠记忆的过期清理 / 上限；本机安装、tmux popup 调宽、<code>sesh.toml</code> 生成、实机验证（由调度端在收口后执行，不在本计划内）。
+  </td></tr>
+</table>
+
+<h3>1.5 构建与验证前置（每个 step 都适用）</h3>
+<p>项目的 mock 由 <strong>mockery v3</strong> 生成且<strong>不在仓库里</strong>（<code>.gitignore</code> 的 <code>mock_*</code>），不生成就编译不过。改了 <code>tmux.Tmux</code> / <code>lister.Lister</code> / <code>picker.Picker</code> 等接口后<strong>必须重新生成</strong>：</p>
+<pre><code>cd /Users/promelo/Workspace/cc-sesh
+/Users/promelo/Workspace/sesh-harness/tools/mockery   # v3.7.4，已装好，必须用这个
+go build ./...
+go vet ./...
+go test ./...</code></pre>
+<p><span class="pill danger">NEVER</span> 用本机 <code>~/go/bin/mockery</code>（v2.51.1，跑 v3 配置会 panic）。工具装在仓库外，不要往仓库里拷任何工具或临时文件。</p>
+<table>
+  <tr><th>基线（本计划 2026-08-24 实测，非转述）</th><th>结果</th></tr>
+  <tr><td><code>go build ./...</code></td><td>通过</td></tr>
+  <tr><td><code>go vet ./...</code></td><td>通过</td></tr>
+  <tr><td><code>go test ./...</code></td><td>全绿：18 个含测试包 <code>ok</code> + 12 个 <code>no test files</code>（<code>go list ./...</code> 共 30 个包）</td></tr>
+  <tr><td><code>/Users/promelo/Workspace/sesh-harness/tools/mockery version</code></td><td><code>v3.7.4</code></td></tr>
+</table>
+<p class="meta">门禁口径：上述三条全过，<strong>现有测试一条都不许因本次改动变红</strong>。因接口签名变化而必须机械改动的既有测试辅助函数（见 §4.1 <code>picker/picker_test.go</code>）只改造型、不改断言。</p>
+</section>
+
+<!-- ============================================================ -->
+<section data-section="api">
+<h2>2. API 清单</h2>
+<p class="meta">本功能不涉及 HTTP / 后端接口。数据层 API 全部是对 <code>tmux</code> CLI 的封装调用与本地状态文件读写，逐条列在各 step 的「覆盖锚点 · 数据层 API」里。此处汇总本次新增 / 语义放宽的外部命令：</p>
+<table>
+  <tr><th>#</th><th>用途</th><th>命令</th><th>入参</th><th>输出</th><th>失败处理</th></tr>
+  <tr>
+    <td>1</td>
+    <td>一次性列出所有 session 的 window（新增）</td>
+    <td><code>tmux list-windows -a -F "&lt;fmt&gt;"</code></td>
+    <td>无</td>
+    <td>每行 <code>session_name::window_index::window_name::window_active</code></td>
+    <td>报错 → 返回空切片 + <code>nil</code>（照 <code>ListAllPanes</code> fail-soft），picker 退化为「全部不可展开」</td>
+  </tr>
+  <tr>
+    <td>2</td>
+    <td>抓取目标屏幕（目标参数放宽）</td>
+    <td><code>tmux capture-pane -e -p -t &lt;target&gt;</code></td>
+    <td><code>target</code>：<code>sess</code> 或 <code>sess:3</code>（原语义仅 session 名）</td>
+    <td>带 ANSI 转义的屏幕文本</td>
+    <td>报错 → 预览区显示失败说明，不退出 picker</td>
+  </tr>
+  <tr>
+    <td>3</td>
+    <td>切到目标 window（既有能力，新调用方）</td>
+    <td><code>tmux select-window -t &lt;sess:idx&gt;</code></td>
+    <td>完整目标串</td>
+    <td>—</td>
+    <td>包装 error 返回给 CLI，不 panic</td>
+  </tr>
+  <tr>
+    <td>4</td>
+    <td>tmux 外直接落到目标 window（既有能力，新参数形态）</td>
+    <td><code>tmux attach-session -t &lt;sess:idx&gt;</code></td>
+    <td>完整目标串</td>
+    <td>—</td>
+    <td>同上</td>
+  </tr>
+  <tr>
+    <td>5</td>
+    <td>折叠记忆读写（新增，本地文件非命令）</td>
+    <td><code>$XDG_STATE_HOME/cc-sesh/picker-ui.json</code></td>
+    <td><code>{"version":1,"expanded":["a","b"]}</code></td>
+    <td>展开集合</td>
+    <td>读失败 / 版本不认识 → 空集合；写失败 → 忽略，仅影响下次记忆</td>
+  </tr>
+</table>
+</section>
+
+<!-- ============================================================ -->
+<section data-section="assets">
+<h2>3. 物料清单</h2>
+<p class="meta">本功能是终端 TUI，<strong>无设计稿、无 icon / 图片 / 字体资源</strong>——渲染物料全是字符与 ANSI 颜色，且颜色调色板复用 <code>picker/tui.go</code> 既有常量。下表只有「字符串」一类有实质内容。</p>
+
+<h3>3.1 Icon</h3>
+<table>
+  <tr><th>名称</th><th>用途</th><th>状态</th><th>落地去向</th></tr>
+  <tr><td><code>└</code> / <code>*</code>（U+2514 / ASCII 星号）</td><td>window 行前缀 + 活动 window 标记</td><td><span class="pill ok">已有</span> 直接字面量，无需资源</td><td>代码内联（<code>picker/tui.go</code>）</td></tr>
+  <tr><td>来源 icon（tmux / zoxide / config …）</td><td>session 行来源标识</td><td><span class="pill ok">已有</span> 复用 <code>icon.Glyphs</code> + <code>srcIcon()</code></td><td>复用 <code>icon/icon.go</code>，本次不改</td></tr>
+</table>
+
+<h3>3.2 图片</h3>
+<p class="meta">无。终端 TUI 不涉及位图资源。</p>
+
+<h3>3.3 字体 / 配色</h3>
+<table>
+  <tr><th>用途</th><th>取值</th><th>状态</th></tr>
+  <tr><td>全部文本</td><td>终端等宽字体（用户终端设置）</td><td><span class="pill ok">已有</span> 不由程序指定</td></tr>
+  <tr><td>window 行正常字符</td><td>默认前景色（<code>lipgloss.NewStyle()</code>）</td><td><span class="pill ok">已有</span></td></tr>
+  <tr><td>window 行搜索命中字符</td><td><code>colorMatch</code> = <code>ANSIColor(1)</code> + Bold（与 session 名一致）</td><td><span class="pill ok">已有</span> <code>picker/tui.go</code></td></tr>
+  <tr><td>活动 window 标记 / 光标标记</td><td><code>colorCursor</code> = <code>ANSIColor(2)</code></td><td><span class="pill ok">已有</span> <code>picker/tui.go</code></td></tr>
+  <tr><td>预览区占位 / 失败说明</td><td><code>Faint(true)</code>（与 <code>Loading sessions...</code> 同款）</td><td><span class="pill ok">已有</span> <code>picker/tui.go</code></td></tr>
+  <tr><td>预览正文</td><td>原样保留 <code>capture-pane -e</code> 带回的 ANSI 颜色，不二次着色</td><td><span class="pill ok">已有</span> 由 tmux 提供</td></tr>
+</table>
+
+<h3>3.4 字符串</h3>
+<p class="meta">项目无 i18n 资源文件，UI 字符串直接内联在 Go 代码里（现状：<code>"Loading sessions..."</code> / <code>"Filter sessions..."</code>）。PRD 只要求「显示一行简短说明」，未给定字面文案——下表由<strong>本计划定稿</strong>，沿用既有英文 UI 风格；用户在确认计划时可直接改。</p>
+<table>
+  <tr><th>Key（代码内常量名）</th><th>文案</th><th>用途</th><th>落地去向</th></tr>
+  <tr><td><code>previewLoadingText</code></td><td><code>Loading preview...</code></td><td>预览 · 读取中占位（PRD「预览 · 读取中」）</td><td><code>picker/preview.go</code> 常量</td></tr>
+  <tr><td><code>previewNoTargetText</code></td><td><code>No live session to preview</code></td><td>非 tmux 项 / window 表为空 / 空结果态（PRD「预览 · 无可预览目标」「空结果态」）</td><td><code>picker/preview.go</code> 常量</td></tr>
+  <tr><td><code>previewFailedPrefix</code></td><td><code>Preview failed: </code>（后接失败原因）</td><td>抓屏失败说明（PRD「预览失败」）</td><td><code>picker/preview.go</code> 常量</td></tr>
+  <tr><td><code>windowRowPrefix</code></td><td><code>└ </code></td><td>window 行前缀</td><td><code>picker/tui.go</code> 常量</td></tr>
+  <tr><td><code>windowActiveMark</code></td><td><code> *</code></td><td>活动 window 标记</td><td><code>picker/tui.go</code> 常量</td></tr>
+  <tr><td>README hotkey <code>→</code></td><td>EN: <code>expand the session under cursor (tmux sources only)</code><br>ZH: <code>展开光标所在 session（仅 tmux 来源）</code></td><td>README hotkey 表新增行</td><td><code>README.md</code> / <code>README.zh-cn.md</code></td></tr>
+  <tr><td>README hotkey <code>←</code></td><td>EN: <code>collapse the session (from a window row: collapse its session and move the cursor back)</code><br>ZH: <code>折起 session（光标在 window 行时折起其所属 session 并收回光标）</code></td><td>同上</td><td>同上</td></tr>
+  <tr><td>README hotkey <code>Ctrl-r</code></td><td>EN: <code>re-capture the preview snapshot</code><br>ZH: <code>重取当前预览快照</code></td><td>同上</td><td>同上</td></tr>
+  <tr><td>README 预览条件说明</td><td>EN: <code>The preview pane renders only when the terminal is at least 102 columns wide (list 60 + gap 2 + preview 40); it comes back automatically when you widen the terminal.</code><br>ZH: <code>终端宽度 ≥ 102 列（列表 60 + 间距 2 + 预览 40）才渲染预览分栏；拉宽终端会自动恢复。</code></td><td>README hotkey 段落补充说明</td><td>同上</td></tr>
+</table>
+
+<p class="meta"><strong>盘点结论：无缺失物料。</strong>本功能不依赖任何需要用户补充的设计资源；所有渲染字符与颜色要么复用既有常量，要么由本计划定稿并列在上表。</p>
+</section>
+
+<!-- ============================================================ -->
+<section data-section="file-changes">
+<h2>4. 文件变更清单</h2>
+
+<h3>4.1 逐文件改动面</h3>
+<table>
+  <tr><th>操作</th><th>路径</th><th>step</th><th>用途</th><th>非测试代码估算</th></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>model/tmux_window.go</code></td><td>01</td><td>新增 <code>TmuxWindowAcrossSessions</code>（照 <code>TmuxPaneAcrossSessions</code> 先例）</td><td>+12</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>tmux/tmux.go</code></td><td>01</td><td><code>Tmux</code> 接口新增 <code>ListAllWindows()</code>；<code>CapturePane</code> 参数 <code>targetSession</code> → <code>target</code>（语义放宽，签名类型不变）</td><td>+3</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>tmux/list_tmux_win.go</code></td><td>01</td><td><code>ListAllWindows</code> 实现（<code>list-windows -a</code>）+ 解析函数；<code>ListWindows</code> 原样不动</td><td>+45</td></tr>
+  <tr><td><span class="pill ok">新增</span></td><td><code>picker/uistate/store.go</code></td><td>01</td><td>折叠记忆独立 JSON 存储（<code>DefaultPath</code> / <code>LoadExpanded</code> / <code>SaveExpanded</code>，原子写）</td><td>+130</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>picker/tui.go</code></td><td>01</td><td><code>WindowItem</code> / <code>FetchResult</code> 类型 + <code>FetchFunc</code> 签名 + <code>sessionsLoadedMsg.windows</code> + <code>Model.windows/windowsBySession</code></td><td>+35</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>seshcli/claude_wire.go</code></td><td>01</td><td><code>makeClaudeFetcher</code> 返回 <code>FetchResult</code>；<code>all</code>/<code>tmux</code> 模式下拉 <code>ListAllWindows</code> 并转成 <code>picker.WindowItem</code>（失败 fail-soft）</td><td>+35</td></tr>
+  <tr><td><span class="pill ok">新增</span></td><td><code>tmux/list_all_win_test.go</code></td><td>01</td><td><code>ListAllWindows</code> 解析 / fail-soft 测试</td><td>测试，不计入</td></tr>
+  <tr><td><span class="pill ok">新增</span></td><td><code>picker/uistate/store_test.go</code></td><td>01</td><td>读写 / 版本 / 损坏 / 原子性测试</td><td>测试，不计入</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>picker/picker_test.go</code></td><td>01</td><td><strong>仅造型改动</strong>：<code>testFetchFunc</code> 改返回 <code>FetchResult</code>；断言一条不动</td><td>测试，不计入</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>picker/picker.go</code></td><td>02</td><td><code>ExpandStore</code> 接口 + <code>PickerOptions.ExpandStore</code> + <code>Pick</code> 内 <code>WithExpandStore</code> 接线</td><td>+14</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>picker/tui.go</code></td><td>02</td><td>可见行模型 + 两个展开集合 + <code>→</code>/<code>←</code>/<code>Enter</code> 分流 + 搜索扩到 window 名 + 光标夹紧 + 模式切换清临时集合</td><td>+290</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>seshcli/deps.go</code></td><td>02</td><td>构造 <code>uistate.Store</code> 并挂到 <code>Deps.PickerUIState</code></td><td>+12</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>seshcli/picker.go</code></td><td>02</td><td><code>pickerOpts.ExpandStore = deps.PickerUIState</code></td><td>+4</td></tr>
+  <tr><td><span class="pill ok">新增</span></td><td><code>picker/expand_test.go</code></td><td>02</td><td>可见行构建 / 展开集合分离 / 按键行为 / 夹紧测试</td><td>测试，不计入</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>picker/tui.go</code></td><td>03</td><td>留白常量三处共用 + <code>renderWindowRow</code> + 分栏拼接 + <code>visibleCount</code> 注释与不受预览影响的保证</td><td>+250</td></tr>
+  <tr><td><span class="pill ok">新增</span></td><td><code>picker/preview.go</code></td><td>03</td><td>预览状态 + 六步取快照消息流 + ANSI 感知渲染</td><td>+120</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>picker/picker.go</code></td><td>03</td><td><code>PaneCapturer</code> 接口 + <code>PickerOptions.Capturer</code> + <code>WithCapturer</code> 接线</td><td>+10</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>seshcli/claude_wire.go</code></td><td>03</td><td><code>tmuxCapturer</code> 适配器（照 <code>tmuxKiller</code> 先例）</td><td>+14</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>seshcli/picker.go</code></td><td>03</td><td><code>pickerOpts.Capturer = &amp;tmuxCapturer{...}</code></td><td>+4</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>go.mod</code> / <code>go.sum</code></td><td>03</td><td><code>github.com/charmbracelet/x/ansi v0.11.6</code> 由 indirect 转直接依赖（<code>go mod tidy</code>）</td><td>+2</td></tr>
+  <tr><td><span class="pill ok">新增</span></td><td><code>picker/preview_test.go</code></td><td>03</td><td>留白常量 / window 行渲染 / 阈值 / 双序号丢弃 / ANSI 截断测试</td><td>测试，不计入</td></tr>
+  <tr><td><span class="pill ok">新增</span></td><td><code>connector/window.go</code></td><td>04</td><td><code>tmuxWindowStrategy</code> 四条判定 + <code>connectToTmuxWindow</code></td><td>+95</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>connector/connect.go</code></td><td>04</td><td>策略链插入 <code>tmuxWindowStrategy</code>（pane 之后、tmux 之前）+ 注册 <code>"tmux-window"</code> 连接动作</td><td>+3</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>seshcli/picker.go</code></td><td>04</td><td><code>sessionNameOf(chosen)</code> 拆名后 <code>Ack</code>，完整目标串交 <code>Connect</code></td><td>+18</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>README.md</code></td><td>04</td><td>hotkey 表补 <code>→</code>/<code>←</code>/<code>Ctrl-r</code> + 预览显示条件说明</td><td>+6</td></tr>
+  <tr><td><span class="pill warn">修改</span></td><td><code>README.zh-cn.md</code></td><td>04</td><td>同上（中文）</td><td>+6</td></tr>
+  <tr><td><span class="pill ok">新增</span></td><td><code>connector/window_test.go</code></td><td>04</td><td>四条判定逐条测试 + 连接动作测试</td><td>测试，不计入</td></tr>
+  <tr><td><span class="pill ok">新增</span></td><td><code>seshcli/picker_ack_test.go</code></td><td>04</td><td><code>sessionNameOf</code> 拆名测试</td><td>测试，不计入</td></tr>
+</table>
+<p class="meta">本表是本计划对仓库的完整改动面，<strong>无删除条目</strong>。非测试代码合计约 <strong>1110 行</strong>（step 01 ≈ 260 / step 02 ≈ 320 / step 03 ≈ 400 / step 04 ≈ 128）。<code>mock_*.go</code> 由 mockery 生成且被 <code>.gitignore</code> 忽略，不进本表也不进 commit。</p>
+
+<h3>4.2 技术方案「改动覆盖清单」17 项 ↔ 落地位置</h3>
+<table>
+  <tr><th>#</th><th>对象</th><th>新增/修改</th><th>step</th><th>落地文件 / 符号</th></tr>
+  <tr><td>1</td><td>picker · 可见行模型</td><td>新增</td><td>02</td><td><code>picker/tui.go</code> · <code>visibleRow</code> / <code>buildVisibleRows()</code></td></tr>
+  <tr><td>2</td><td>picker · 展开状态</td><td>新增</td><td>02</td><td><code>picker/tui.go</code> · <code>Model.expanded</code> + <code>Model.tempExpanded</code>（两个独立集合）</td></tr>
+  <tr><td>3</td><td>picker · 预览状态</td><td>新增</td><td>03</td><td><code>picker/preview.go</code> · <code>previewState{target, content, seq, err, loading}</code></td></tr>
+  <tr><td>4</td><td>状态表留白常量</td><td>修改</td><td>03</td><td><code>picker/tui.go</code> · <code>badgeLeftPad</code>/<code>badgeRightGap</code>，被 <code>renderTableTop</code>/<code>renderColumnHeaders</code>/<code>renderRow</code> 三处共用</td></tr>
+  <tr><td>5</td><td>行渲染</td><td>修改</td><td>03</td><td><code>picker/tui.go</code> · <code>renderRow</code>（session 行）+ <code>renderWindowRow</code>（新增）</td></tr>
+  <tr><td>6</td><td>左右分栏</td><td>新增</td><td>03</td><td><code>picker/tui.go</code> · <code>View()</code> 内 <code>lipgloss.JoinHorizontal</code> + <code>showPreview()</code></td></tr>
+  <tr><td>7</td><td>预览取数与渲染</td><td>新增</td><td>03</td><td><code>picker/preview.go</code> · <code>retargetPreview</code> / <code>previewTickMsg</code> / <code>previewResultMsg</code> / <code>renderPreview</code>（<code>ansi.Truncate</code>）</td></tr>
+  <tr><td>8</td><td>可见行数计算</td><td>修改</td><td>02+03</td><td><code>picker/tui.go</code> · <code>visibleCount()</code> 取值不受预览影响；滚动改以 <code>len(m.rows)</code> 为界（window 行占用可见行）</td></tr>
+  <tr><td>9</td><td>方向键 / 回车 / 刷新键</td><td>修改</td><td>02（<code>→</code>/<code>←</code>/<code>Enter</code>）+ 03（<code>Ctrl-r</code>）</td><td><code>picker/tui.go</code> · <code>Update()</code> 的 <code>KeyPressMsg</code> 分支</td></tr>
+  <tr><td>10</td><td>搜索过滤</td><td>修改</td><td>02</td><td><code>picker/tui.go</code> · <code>applyFilter()</code> 扩到 window 名 + 命中写入 <code>tempExpanded</code></td></tr>
+  <tr><td>11</td><td>picker 取数回调</td><td>修改</td><td>01</td><td><code>picker/tui.go</code> · <code>FetchFunc</code> 返回 <code>FetchResult{Sessions, Decorator, Windows}</code>；<code>seshcli/claude_wire.go</code> 填充</td></tr>
+  <tr><td>12</td><td>tmux · 列 window</td><td>修改</td><td>01</td><td><code>tmux/tmux.go</code> 接口 + <code>tmux/list_tmux_win.go</code> · <code>ListAllWindows()</code>（<code>list-windows -a</code>）</td></tr>
+  <tr><td>13</td><td>tmux · 抓屏</td><td>修改</td><td>01</td><td><code>tmux/tmux.go</code> / <code>tmux/tmux.go:CapturePane</code> · 参数 <code>targetSession</code> → <code>target</code>，接受任意 tmux 目标</td></tr>
+  <tr><td>14</td><td>picker UI 状态文件</td><td>新增</td><td>01（存储）+ 02（接线）</td><td><code>picker/uistate/store.go</code> · <code>$XDG_STATE_HOME/cc-sesh/picker-ui.json</code></td></tr>
+  <tr><td>15</td><td>connector · window 策略</td><td>新增</td><td>04</td><td><code>connector/window.go</code> · <code>tmuxWindowStrategy</code> + <code>connectToTmuxWindow</code>；<code>connector/connect.go</code> 挂链</td></tr>
+  <tr><td>16</td><td>picker 命令收口</td><td>修改</td><td>04</td><td><code>seshcli/picker.go</code> · <code>sessionNameOf(chosen)</code> → <code>Ack</code>，<code>Connect(chosen)</code></td></tr>
+  <tr><td>17</td><td>README / README.zh-cn</td><td>修改</td><td>04</td><td><code>README.md</code> / <code>README.zh-cn.md</code> · hotkey 表 3 行 + 预览显示条件</td></tr>
+</table>
+</section>
+
+<!-- ============================================================ -->
+<section data-section="steps-overview">
+<h2>5. Step 清单</h2>
+<table>
+  <tr><th>#</th><th>Step ID</th><th>类型</th><th>描述</th><th>依赖</th><th>非测试代码估算</th></tr>
+  <tr><td>1</td><td><code>01-window-data</code></td><td>数据层 + 持久化</td><td>tmux 全量 window 拉取 + 抓屏目标放宽 + 折叠记忆独立存储 + picker 取数回调改造（数据先到位，UI 不动）</td><td>—</td><td>≈ 260 行</td></tr>
+  <tr><td>2</td><td><code>02-visible-rows</code></td><td>TUI 模型 + 交互</td><td>可见行两级模型、手动/临时两个展开集合、<code>→</code>/<code>←</code>/<code>Enter</code> 分流、搜索扩到 window 名、光标与滚动夹紧</td><td>01</td><td>≈ 320 行</td></tr>
+  <tr><td>3</td><td><code>03-render-preview</code></td><td>TUI 渲染</td><td>状态表留白常量三处共用、window 行渲染规格、右侧预览分栏（102 列阈值）、六步取快照 + <code>Ctrl-r</code> + ANSI 感知截断</td><td>02</td><td>≈ 400 行</td></tr>
+  <tr><td>4</td><td><code>04-connect-window</code></td><td>连接 + CLI + 文档</td><td>connector <code>tmux-window</code> 策略四条判定、命令入口拆名后 Ack、README ×2 hotkey 与预览条件</td><td>02（返回值格式）</td><td>≈ 128 行</td></tr>
+</table>
+<p class="meta">执行顺序即依赖顺序：01 → 02 → 03 → 04。每个 step 收尾都要跑 §1.5 的四条命令（mockery → build → vet → test）。</p>
+</section>
+
+<!-- ============================================================ -->
+<section data-section="step" data-step-id="01-window-data">
+<h2>6. Step 01 · window-data</h2>
+<p class="meta"><span class="pill">数据层 + 持久化</span><span class="pill">无物料</span><span class="pill">依赖 —</span><span class="pill">覆盖清单 #11 #12 #13 #14(存储)</span></p>
+
+<h3>目标</h3>
+<p>把两样数据先备齐、UI 一行不动：<strong>①</strong> tmux 侧能一次列出所有 session 的 window，抓屏目标参数放宽到任意 tmux 目标；<strong>②</strong> 折叠记忆有一个独立于 <code>attention.json</code> 的原子读写存储；<strong>③</strong> picker 取数回调把 window 全量清单一并带回并存进 <code>Model</code>（此时还没人用它渲染）。</p>
+
+<h3>对外接口契约</h3>
+<div class="contract">
+<pre><code>// ---------- model/tmux_window.go（新增类型，既有 TmuxWindow 不动） ----------
+// TmuxWindowAcrossSessions 跨所有 session 列出 window 的精简视图。
+type TmuxWindowAcrossSessions struct {
+    SessionName string
+    Name        string
+    Index       int
+    Active      bool
+}
+
+// ---------- tmux/tmux.go（接口新增 1 个方法 + 1 处参数语义放宽） ----------
+type Tmux interface {
+    // ……既有方法一律不动……
+    ListWindows(targetSession string) ([]*model.TmuxWindow, error) // 不变
+    ListAllWindows() ([]*model.TmuxWindowAcrossSessions, error)    // 新增
+    CapturePane(target string) (string, error)                     // 参数名/语义放宽，类型不变
+}
+
+// ---------- tmux/list_tmux_win.go ----------
+func (t *RealTmux) ListAllWindows() ([]*model.TmuxWindowAcrossSessions, error)
+
+// ---------- picker/uistate/store.go（新增包） ----------
+package uistate
+
+// DefaultPath 返回 $XDG_STATE_HOME/cc-sesh/picker-ui.json，
+// 兜底 $HOME/.local/state/cc-sesh/picker-ui.json。
+func DefaultPath() (string, error)
+
+type Store struct{ /* 非导出字段 */ }
+
+func New(path string) *Store
+func (s *Store) LoadExpanded() map[string]struct{}
+func (s *Store) SaveExpanded(names []string) error
+
+// ---------- picker/tui.go（取数回调改造） ----------
+// WindowItem 是 picker 渲染 window 行所需的最小信息，
+// 与 tmux 具体实现解耦（同 Decoration 的做法）。
+type WindowItem struct {
+    SessionName string
+    Index       int
+    Name        string
+    Active      bool
+}
+
+// FetchResult 是取数回调的一次性返回体。
+type FetchResult struct {
+    Sessions  model.SeshSessions
+    Decorator Decorator
+    Windows   []WindowItem // 全部 session 的 window 清单（非 all/tmux 模式为 nil）
+}
+
+type FetchFunc func(mode string) (FetchResult, error)  // 签名变更
+
+// ---------- seshcli/claude_wire.go ----------
+func makeClaudeFetcher(deps *Deps, listerOpts lister.ListOptions) picker.FetchFunc  // 返回类型随之变化</code></pre>
+
+<strong>行为契约</strong>
+<ul>
+  <li><code>ListAllWindows</code>：执行 <code>tmux list-windows -a -F "#{session_name}::#{window_index}::#{window_name}::#{window_active}"</code>（分隔符复用包内既有 <code>separator = "::"</code>），走 <code>t.shell.ListCmd</code>。</li>
+  <li><code>ListAllWindows</code> 失败一律 <strong>fail-soft</strong>：<code>ListCmd</code> 报错 → 返回<strong>空切片 + nil error</strong>（照 <code>ListAllPanes</code> 先例），让 picker 退化为「全部 session 不可展开」而不是崩掉。</li>
+  <li><code>ListAllWindows</code> 解析：按分隔符切，字段数 ≠ 4 的行<strong>跳过</strong>；<code>Index</code> 走 <code>convert.StringToInt</code>，<code>Active</code> 走 <code>convert.StringToBool</code>；不做排序（排序在 step 02 分组时做）。</li>
+  <li><code>ListWindows(targetSession)</code> <strong>行为一字不改</strong>——<code>window</code> 子命令是既有调用方，不得受影响。</li>
+  <li><code>CapturePane</code> <strong>只改参数名与文档注释</strong>：命令仍是 <code>capture-pane -e -p -t &lt;target&gt;</code>，<code>sess</code> / <code>sess:3</code> / <code>sess:3.0</code> 一律原样透传；既有 <code>preview</code> 子命令传 session 名，行为不变。</li>
+  <li><code>uistate.DefaultPath</code>：<code>XDG_STATE_HOME</code> 非空 → <code>$XDG_STATE_HOME/cc-sesh/picker-ui.json</code>；否则 <code>$HOME/.local/state/cc-sesh/picker-ui.json</code>；取不到 home → 返回 error。<span class="pill danger">NEVER</span> 返回 <code>attention.json</code> 或与之共用文件。</li>
+  <li><code>LoadExpanded</code>：文件不存在 / 读失败 / JSON 损坏 / <code>version</code> ≠ 1 → 一律返回<strong>空 map</strong>，不返回 error、不打断；正常 → 返回 <code>expanded</code> 数组去重后的集合。</li>
+  <li><code>SaveExpanded</code>：写 <code>{"version":1,"expanded":[...]}</code>，<code>expanded</code> <strong>排序去重</strong>后输出（diff 友好）；<code>MkdirAll</code> 目录 → 写 <code>&lt;path&gt;.tmp</code> → <code>Rename</code> 原子落盘。<strong>空集合也要写</strong>（用户折起最后一个 session 时必须落盘）。</li>
+  <li><code>SaveExpanded</code> 的 error 由调用方决定是否忽略；本 step 只保证「写失败时不损坏原文件」（原子写）。</li>
+  <li><code>makeClaudeFetcher</code>：仅在 <code>mode ∈ {all, tmux}</code> 时调 <code>deps.Tmux.ListAllWindows()</code> 并转成 <code>[]picker.WindowItem</code>；其他模式返回 <code>Windows: nil</code>。调用失败 → <code>slog.Warn</code> + <code>Windows: nil</code>，<strong>不阻断取数</strong>（与 live / attention 的 fail-soft 一致）。</li>
+  <li><code>Model</code> 收到 <code>sessionsLoadedMsg</code> 时把 <code>windows</code> 存进 <code>m.windows</code>，本 step 不参与任何渲染与光标计算。</li>
+  <li>既有测试兼容：<code>picker/picker_test.go</code> 的 <code>testFetchFunc</code> 改成返回 <code>FetchResult</code>（3 行造型改动），<strong>断言一条不改</strong>；<code>sessionsLoadedMsg</code> 是带字段名的字面量，新增字段不破坏既有构造。</li>
+  <li>接口新增方法后<strong>必须重跑 mockery</strong>（<code>tmux.MockTmux</code> 需要新方法），否则 <code>seshcli</code> / <code>connector</code> 的测试编译不过。</li>
+</ul>
+
+<strong>覆盖锚点 · 数据层 API</strong>（每条 API 的成功路径 + 每个失败分支各要有断言）
+<ul>
+  <li><code>tmux.ListAllWindows</code>：① 多 session 多 window 正常解析（含 <code>Active</code> 真/假、<code>Index</code> 非零）② <code>ListCmd</code> 报错 → 空切片 + nil error ③ 字段数不足的脏行被跳过而不是 panic ④ 空输出 → 空切片</li>
+  <li><code>tmux.ListWindows</code>：回归——单 session 调用参数与结果与改动前一致</li>
+  <li><code>tmux.CapturePane</code>：<code>sess</code> 与 <code>sess:3</code> 两种目标串都原样出现在 <code>-t</code> 参数位</li>
+  <li><code>uistate.DefaultPath</code>：① <code>XDG_STATE_HOME</code> 已设 ② 未设走 home 兜底 ③ 路径末段是 <code>picker-ui.json</code> 且不等于 attention 的路径</li>
+  <li><code>uistate.Store.LoadExpanded</code>：① 正常文件 ② 文件不存在 ③ JSON 损坏 ④ <code>version</code> 不认识（如 <code>99</code>）——后三者都必须是空集合</li>
+  <li><code>uistate.Store.SaveExpanded</code>：① 写后 <code>LoadExpanded</code> 读回一致 ② 目录不存在自动创建 ③ 写空集合后读回为空 ④ 落盘后目录里<strong>不残留 <code>.tmp</code></strong> ⑤ 输出 JSON 的 <code>expanded</code> 已排序</li>
+  <li><code>makeClaudeFetcher</code>：① <code>all</code> 模式带回 windows ② <code>zoxide</code> 模式 <code>Windows == nil</code> 且不调 <code>ListAllWindows</code> ③ <code>ListAllWindows</code> 报错时 sessions 照常返回、<code>Windows == nil</code></li>
+</ul>
+
+<strong>覆盖锚点 · 可交互控件</strong>
+<p class="meta">本 step 无 UI 交互（纯数据层）。</p>
+
+<strong>覆盖锚点 · 布局约束</strong>
+<p class="meta">本 step 无渲染改动，<code>View()</code> 输出必须与改动前逐字节一致（可用既有 <code>TestView_ReturnsNonEmpty</code> 系列回归）。</p>
+</div>
+
+<h3>本 step 涉及文件</h3>
+<ul>
+  <li>新增：<code>picker/uistate/store.go</code> / <code>picker/uistate/store_test.go</code> / <code>tmux/list_all_win_test.go</code></li>
+  <li>修改：<code>model/tmux_window.go</code> / <code>tmux/tmux.go</code> / <code>tmux/list_tmux_win.go</code> / <code>picker/tui.go</code> / <code>seshcli/claude_wire.go</code> / <code>picker/picker_test.go</code>（仅造型）</li>
+  <li>物料子目录：无</li>
+</ul>
+</section>
+
+<!-- ============================================================ -->
+<section data-section="step" data-step-id="02-visible-rows">
+<h2>7. Step 02 · visible-rows</h2>
+<p class="meta"><span class="pill">TUI 模型 + 交互</span><span class="pill">无物料</span><span class="pill">依赖 01</span><span class="pill">覆盖清单 #1 #2 #8(滚动) #9(→/←/Enter) #10 #14(接线)</span></p>
+
+<h3>目标</h3>
+<p>把 picker 的一维 session 列表升级成「session 行 + window 行」两级可见行模型：光标与滚动改以可见行为单位、<code>→</code>/<code>←</code> 展开折起并落盘、<code>Enter</code> 按行类型分流、搜索匹配范围扩到 window 名并触发<strong>临时</strong>展开。渲染仍走既有 <code>renderRow</code>（window 行的样式在 step 03 补），本 step 只保证模型与交互正确。</p>
+
+<h3>对外接口契约</h3>
+<div class="contract">
+<pre><code>// ---------- picker/picker.go ----------
+// ExpandStore 由 picker 在用户手动展开 / 折起时调用，持久化展开集合。
+// 传 nil 时 picker 退化为纯内存展开状态（不读盘、不写盘）。
+type ExpandStore interface {
+    LoadExpanded() map[string]struct{}
+    SaveExpanded(names []string) error
+}
+
+type PickerOptions struct {
+    // ……既有字段一律不动……
+    ExpandStore ExpandStore // 新增
+}
+
+// Pick 的公开签名不变：Pick(fetchFunc FetchFunc, opts PickerOptions) (string, error)
+
+// ---------- picker/tui.go ----------
+// WithExpandStore 注入折叠记忆存储并立刻载入手动展开集合。
+// 照 attention.Store.WithClock 的先例做成链式 setter，
+// 从而不改 New() 的既有参数列表（既有测试 10 处调用点零改动）。
+func (m Model) WithExpandStore(store ExpandStore) Model
+
+type rowKind int
+const (
+    rowSession rowKind = iota
+    rowWindow
+)
+
+// visibleRow 是渲染与光标的唯一依据。
+type visibleRow struct {
+    kind           rowKind
+    sessionIdx     int        // 指向 m.filtered
+    window         WindowItem // 仅 rowWindow 有效
+    matchedIndexes []int      // 仅 rowWindow：window 名的命中高亮下标
+}
+
+// windowMatch 是某个 session 下被搜索命中的 window。
+type windowMatch struct {
+    window         WindowItem
+    matchedIndexes []int
+}
+
+// filteredItem 新增一个字段，其余不动。
+type filteredItem struct {
+    item           sessionItem
+    matchedIndexes []int
+    windowMatches  []windowMatch // 新增：本轮搜索命中的 window（无搜索时为空）
+}
+
+// 纯函数：三份输入决定全部可见行，无副作用、可直接单测。
+func buildVisibleRows(
+    filtered []filteredItem,
+    expanded map[string]struct{},      // 手动展开集合
+    temp map[string]struct{},          // 搜索临时展开集合
+    windowsBySession map[string][]WindowItem,
+) []visibleRow
+
+func (m Model) rowAt(i int) (visibleRow, bool)
+func (m Model) isExpandable(sessionIdx int) bool
+func (m *Model) clampCursor()
+func (m *Model) expandCurrent()   // → 键
+func (m *Model) collapseCurrent() // ← 键
+func windowTarget(session string, index int) (string, bool) // 会话名含 ':' → ok=false</code></pre>
+
+<strong>行为契约</strong>
+<ul>
+  <li><strong>window 分组</strong>：取数完成时把 <code>m.windows</code> 按 <code>SessionName</code> 分组存进 <code>m.windowsBySession</code>，组内<strong>按 <code>Index</code> 升序</strong>排序。</li>
+  <li><strong>可展开判定</strong>：<code>item.src == "tmux"</code> <strong>且</strong> <code>len(windowsBySession[name]) &gt;= 1</code>。非 tmux 来源、或 window 数为 0 → 不可展开（<span class="pill danger">NEVER</span> 让 zoxide / config / find 项可展开）。</li>
+  <li><strong>buildVisibleRows 规则</strong>（顺序敏感）：按 <code>filtered</code> 顺序（已含 ATTN 置顶排序）逐个产出 session 行；紧随其后按下列优先级追加 window 行——
+    <ol>
+      <li>该 session ∈ <code>temp</code> 且 <code>len(windowMatches) &gt; 0</code> → <strong>只</strong>追加命中的 window 行（按 <code>Index</code> 升序），高亮下标取 <code>windowMatch.matchedIndexes</code>；</li>
+      <li>否则该 session ∈ <code>expanded</code> → 追加它<strong>全部</strong> window 行（按 <code>Index</code> 升序），<code>matchedIndexes</code> 为 nil；</li>
+      <li>否则不追加。</li>
+    </ol>
+    同时落在两个集合里时走 ①（详设「判定优先级」：命中 window 时只渲染命中行）。</li>
+  <li><strong>排序不可颠倒</strong>：先对 session 层排序（ATTN 置顶，既有 <code>sort.SliceStable</code> 不改），<strong>再</strong>插 window 行；window 行永不参与顶层排序。</li>
+  <li><strong>重算触发点</strong>：取数完成、搜索词变化、展开集合变化、kill session、切换数据源——五处之后都必须重算 <code>m.rows</code> 并调 <code>clampCursor()</code>。</li>
+  <li><strong>clampCursor</strong>：<code>rows</code> 为空 → <code>cursor = offset = 0</code>；<code>cursor &gt; len(rows)-1</code> → 收到末行；<code>cursor &lt; 0</code> → 0；<code>offset &gt; cursor</code> → <code>offset = cursor</code>；<code>cursor &gt;= offset + visibleCount()</code> → <code>offset = cursor - visibleCount() + 1</code>；<code>offset &lt; 0</code> → 0。</li>
+  <li><strong><code>→</code>（right）</strong>：光标在 session 行且可展开 → 加入 <code>expanded</code> + 调 <code>SaveExpanded</code>（store 非 nil 时）+ 重算 + 夹紧；不可展开、或光标已在 window 行 → <strong>静默无反应，且不写盘</strong>。</li>
+  <li><strong><code>←</code>（left）</strong>：光标在 window 行 → 把所属 session 从 <code>expanded</code> 与 <code>temp</code> 中移除，<strong>光标收回该 session 行</strong>；光标在 session 行 → 同样从两个集合移除，光标留在原 session 行。<strong>只有当它确实在 <code>expanded</code> 里被移除时才写盘</strong>；仅从 <code>temp</code> 移除（搜索临时展开）<span class="pill danger">NEVER</span> 写盘。本来就折叠 → 无反应、不写盘。</li>
+  <li><strong><code>Enter</code></strong>：session 行 → <code>chosen = 会话名</code>（现状不变）；window 行 → <code>chosen = fmt.Sprintf("%s:%d", session, window.Index)</code>；<strong>会话名含 <code>:</code> 时退化为只返回会话名</strong>（宁可少切一层也不拼出错误目标）。<code>loading</code> 中按 Enter 仍直接 quit（现状不变）。</li>
+  <li><strong><code>Ctrl-d</code> / <code>Alt-d</code></strong>：光标在 window 行 → <strong>立即 return，一行都不做</strong>（不调 <code>killer</code>/<code>dismisser</code>）；在 session 行 → 行为与现状完全一致。</li>
+  <li><strong>上/下移动</strong>：<code>cursorUp</code>/<code>cursorDown</code> 的上界由 <code>len(m.filtered)-1</code> 改为 <code>len(m.rows)-1</code>，光标可穿行 window 行；<code>Ctrl-u</code>/<code>pgup</code>/<code>pgdown</code> 的半页步长沿用 <code>visibleCount()/2</code> 不变。</li>
+  <li><strong>搜索</strong>：pattern 为空 → <code>filtered</code> 为全量、<code>windowMatches</code> 全空、<code>temp</code> 清空；pattern 非空 → ① 对 session 名做既有 fuzzy（<code>separatorAware</code> 时归一）② 对每个 session 的<strong>全部</strong> window 名（含未展开 session 的）做 fuzzy，同样归一 ③ 命中 window 的 session 若不在 session 命中集合里，<strong>追加</strong>到 <code>filtered</code> 末尾（<code>matchedIndexes</code> 为 nil）④ 所有有 window 命中的 session 写入 <code>temp</code> ⑤ 最后跑既有 ATTN 置顶稳定排序。</li>
+  <li><strong>session 名命中但其下无 window 命中 → 不自动展开</strong>（不写 <code>temp</code>）。</li>
+  <li><strong>清空搜索</strong> → <code>temp</code> 清空，回到 <code>expanded</code> 决定的形态；<code>expanded</code> 一字未动。</li>
+  <li><strong>切换数据源</strong>（<code>Ctrl-a/t/g/x/f</code>）：清搜索、清 <code>temp</code>、<code>cursor</code>/<code>offset</code> 归零、重新取数；<strong><code>expanded</code> 保留</strong>（切回 all/tmux 时按记忆呈现）。</li>
+  <li><strong>kill session</strong>：从 <code>allItems</code> 移除后重算可见行，其 window 行随之消失，再夹紧（<span class="pill danger">NEVER</span> 留下指向不存在 session 下标的孤儿 window 行）。<code>expanded</code> 里的残留条目不主动清理（详设：同名 session 重现时按展开态呈现）。</li>
+  <li><strong><code>WithExpandStore(nil)</code> / 未注入</strong> → <code>expanded</code> 起始为空、永不写盘，保证既有测试与 <code>NoDecoration</code> 路径行为不变。</li>
+  <li><strong>已知行为变化（PRD 指定，需在 README 里体现）</strong>：<code>←</code>/<code>→</code> 被 picker 接管，搜索输入框内不再支持左右移动插入符；PRD 已明确不使用 <code>Space</code> 做展开正是为了不破坏搜索输入。</li>
+</ul>
+
+<strong>覆盖锚点 · 数据层 API</strong>
+<ul>
+  <li><code>ExpandStore.LoadExpanded</code>：<code>WithExpandStore</code> 时调用一次，返回集合成为初始 <code>expanded</code>；返回空 map 时从全折叠开始</li>
+  <li><code>ExpandStore.SaveExpanded</code>：① <code>→</code> 手动展开时被调用且入参含该 session ② <code>←</code> 手动折起时被调用且入参不含该 session ③ 搜索临时展开 / 临时展开态按 <code>←</code> 时<strong>一次都不调用</strong> ④ 不可展开项按 <code>→</code> 时不调用 ⑤ 返回 error 时 picker 照常渲染、不退出</li>
+</ul>
+
+<strong>覆盖锚点 · 可交互控件</strong>（每个控件至少一条「触发 → 验证可观察结果」断言）
+<ul>
+  <li><code>→</code>：可展开 session 行（rows 变长 + 写盘）/ 不可展开的非 tmux 项（rows 不变 + 不写盘）/ window 数为 0 的 tmux session（rows 不变）/ 光标已在 window 行（无反应）</li>
+  <li><code>←</code>：展开态 session 行（rows 变短 + 写盘）/ window 行（rows 变短 + 光标落到该 session 行）/ 已折叠 session 行（无反应、不写盘）/ 搜索临时展开态（rows 变短但<strong>不写盘</strong>）</li>
+  <li><code>Enter</code>：session 行 → <code>chosen == "proj-a"</code> / window 行 → <code>chosen == "proj-a:2"</code> / 会话名含冒号 → 退化为会话名 / 空列表 → <code>chosen == ""</code>（现状）</li>
+  <li><code>↑</code>/<code>↓</code>（含 <code>ctrl+k</code>/<code>ctrl+j</code>/<code>tab</code>）：展开后能从 session 行走进 window 行、再走到下一个 session 行；末行下移被夹紧</li>
+  <li><code>Ctrl-d</code>：window 行 → <code>killer</code> 零调用、rows 不变；session 行 → 行为与现状一致</li>
+  <li><code>Alt-d</code>：window 行 → <code>dismisser</code> 零调用；ATTN session 行 → 行为与现状一致</li>
+  <li><code>Ctrl-u</code> / <code>pgup</code> / <code>pgdown</code>：跨 window 行的半页移动后 <code>cursor</code>/<code>offset</code> 仍在合法区间</li>
+  <li><code>Ctrl-a/t/g/x/f</code>：切模式后 <code>temp</code> 空、<code>expanded</code> 保留、<code>cursor==0</code>、<code>offset==0</code></li>
+  <li>搜索输入：命中 window 名 → 该 session 出现在列表里且只显示命中的 window 行；session 名命中但无 window 命中 → 不展开；清空搜索 → 回到 <code>expanded</code> 形态</li>
+</ul>
+
+<strong>覆盖锚点 · 布局约束</strong>（结构性，不涉及像素）
+<ul>
+  <li>可见行顺序：每个 session 行之后紧跟它自己的 window 行，不与其他 session 的行交错</li>
+  <li>window 行按 <code>Index</code> 升序排列</li>
+  <li>ATTN 置顶排序只作用于 session 层：展开一个非 ATTN session 后，ATTN session 行仍在其之前</li>
+  <li>展开使 <code>len(rows)</code> 增加恰好等于该 session 的 window 数；折起后恰好还原</li>
+  <li>可见窗口 <code>[offset, offset+visibleCount())</code> 始终包含 <code>cursor</code></li>
+</ul>
+</div>
+
+<h3>本 step 涉及文件</h3>
+<ul>
+  <li>新增：<code>picker/expand_test.go</code></li>
+  <li>修改：<code>picker/tui.go</code> / <code>picker/picker.go</code> / <code>seshcli/deps.go</code> / <code>seshcli/picker.go</code></li>
+  <li>物料子目录：无</li>
+</ul>
+</section>
+
+<!-- ============================================================ -->
+<section data-section="step" data-step-id="03-render-preview">
+<h2>8. Step 03 · render-preview</h2>
+<p class="meta"><span class="pill">TUI 渲染</span><span class="pill">物料 ./03-render-preview/</span><span class="pill">依赖 02</span><span class="pill">覆盖清单 #3 #4 #5 #6 #7 #8 #9(Ctrl-r)</span></p>
+
+<h3>目标</h3>
+<p>让界面长成目标形态：状态表左右两侧撑开（三处渲染共用同一组常量）、window 行按规格渲染（无徽章无占位）、终端够宽时右侧拼接一块预览分栏，并按六步流程取一次快照（150ms 防抖 + 两道校验 + ANSI 感知截断），<code>Ctrl-r</code> 强制重取。</p>
+
+<h3>对外接口契约</h3>
+<div class="contract">
+<pre><code>// ---------- picker/tui.go：留白与缩进常量（三处渲染唯一真源） ----------
+const (
+    badgeLeftPad     = 2 // 徽章区左内缩：ATTN 首字符与左侧内容之间的空格数（PRD 要求 ≥2）
+    badgeRightGap    = 3 // 徽章区右间隔：WAIT 列末字符与 session 名之间（原为 1，PRD 要求 ≥3）
+    windowIndentStep = 2 // window 行在 session 名字列起点之上再缩进一级
+)
+
+// ---------- picker/tui.go：分栏常量 ----------
+const (
+    previewGap      = 2                                            // 列表区与预览区的分隔间距
+    listMaxWidth    = 60                                           // 列表区宽度上限（维持现状）
+    previewMinWidth = 40                                           // 预览区下限
+    previewMinTotal = listMaxWidth + previewGap + previewMinWidth  // 102：显示阈值
+)
+
+func (m Model) showPreview() bool   // 每帧现算，NEVER 缓存
+func (m Model) previewWidth() int   // m.width - m.contentWidth() - previewGap
+func (m Model) renderWindowRow(row visibleRow, isCursor bool) string
+
+// 既有函数签名不变，内部改为读上面的常量
+func renderTableTop(showIcons bool, contentWidth int) string
+func renderColumnHeaders(showIcons bool) string
+func (m Model) renderRow(fi filteredItem, isCursor bool) string
+
+// ---------- picker/picker.go ----------
+// PaneCapturer 由 picker 在需要预览时调用，抓取任意 tmux 目标的当前屏幕（含 ANSI 颜色）。
+// 传 nil 时 picker 不发起任何抓屏，预览区显示无目标说明。
+type PaneCapturer interface {
+    Capture(target string) (string, error)
+}
+
+type PickerOptions struct {
+    // ……既有字段 + step 02 的 ExpandStore……
+    Capturer PaneCapturer // 新增
+}
+
+func (m Model) WithCapturer(c PaneCapturer) Model
+
+// ---------- picker/preview.go（新增文件） ----------
+type previewState struct {
+    target  string // 当前预览目标串（"" = 无目标）
+    content string // 已取到的快照（含 ANSI）
+    err     string // 失败说明
+    loading bool   // 读取中
+    seq     int    // 请求序号，用于丢弃过期结果
+}
+
+type previewTickMsg   struct { seq int; target string }
+type previewResultMsg struct { seq int; target, content string; err error }
+
+func (m Model) previewTarget() (string, bool)          // 解析光标所在行的抓屏目标
+func (m *Model) retargetPreview(force bool) tea.Cmd    // 六步中的第 1-3 步
+func (m Model) renderPreview(width, height int) string // ANSI 感知渲染
+
+const (
+    previewLoadingText  = "Loading preview..."
+    previewNoTargetText = "No live session to preview"
+    previewFailedPrefix = "Preview failed: "
+)</code></pre>
+
+<strong>行为契约 · 状态表留白</strong>
+<ul>
+  <li><code>renderTableTop</code>：<code>leftPad = 2 + (showIcons ? 2 : 0) + badgeLeftPad</code>；<code>lineLen = contentWidth - leftPad</code>，下限 <code>colsTotalWidth</code>（19）。横线左端与徽章区左内缩起点<strong>严格一致</strong>。</li>
+  <li><code>renderColumnHeaders</code>：前缀空格 = <code>2 + (showIcons ? 2 : 0) + badgeLeftPad</code>，四个 cell 的宽度与对齐方式<strong>一字不改</strong>。</li>
+  <li><code>renderRow</code>：<code>countsCol = strings.Repeat(" ", badgeLeftPad) + renderRowCounts(dec) + strings.Repeat(" ", badgeRightGap)</code>（原来是 <code>renderRowCounts(dec) + " "</code>）。<code>renderRowCounts</code> 内部的列宽 / 居中 / 配色<strong>一字不改</strong>。</li>
+  <li><code>showSessionStateTable() == false</code> → <code>countsCol</code> 为空串，<strong>留白完全不生效</strong>，session 名紧随来源图标（现状不变）。</li>
+  <li>三处<span class="pill danger">NEVER</span> 出现 <code>2</code> / <code>3</code> 的字面量——必须读同一组常量，否则竖向对齐会散架。</li>
+</ul>
+
+<strong>行为契约 · window 行渲染</strong>
+<ul>
+  <li>光标列与 session 行一致，占 2 列（<code>"> "</code> 或 <code>"  "</code>）。</li>
+  <li>缩进 = <code>nameColStart + windowIndentStep</code> 个空格，其中 <code>nameColStart = (showIcons ? 2 : 0) + (showSessionStateTable() ? badgeLeftPad + colsTotalWidth + badgeRightGap : 0)</code>。</li>
+  <li>行内容 <code>"└ " + strconv.Itoa(index) + ": " + name</code>；<code>window.Active</code> 为真时名字后追加 <code>" *"</code>（同一 session 至多一个）。</li>
+  <li><span class="pill danger">NEVER</span> 渲染 ATTN/IDLE/RUN/WAIT 的任何字符，<span class="pill danger">NEVER</span> 用空白 cell 占位对齐——window 行整行从缩进起点开始左对齐（留空占位会与「无 Claude 的 session 行」撞脸）。</li>
+  <li>搜索高亮：<code>matchedIndexes</code> 非空时用与 session 名相同的 <code>matchStyle</code>（<code>colorMatch</code> + Bold）逐字符高亮，走既有 <code>highlightMatches</code>。</li>
+  <li>window 行<span class="pill danger">NEVER</span> 渲染 ATTN 行尾注（<code>done Nm ago</code>）。</li>
+</ul>
+
+<strong>行为契约 · 预览分栏布局</strong>
+<ul>
+  <li><code>showPreview() = m.width &gt;= previewMinTotal</code>（102）。<span class="pill danger">NEVER</span> 把判定结果缓存进 <code>Model</code>——拉宽终端必须靠既有 <code>tea.WindowSizeMsg</code> 自动恢复。</li>
+  <li><code>previewWidth() = m.width - m.contentWidth() - previewGap</code>；<code>width &gt;= 102</code> 时 <code>contentWidth()</code> 恒为 60，故 <code>previewWidth() &gt;= 40</code> 恒成立。</li>
+  <li>预览区高度 = <code>visibleCount()</code>；<code>visibleCount()</code> 的取值<strong>不受预览是否显示影响</strong>（预览分栏不占行高，窄终端下列表可见条数与现状一致）。</li>
+  <li><code>View()</code>：<code>showPreview()</code> 为真 → 列表块（宽度补齐到 <code>contentWidth()</code>）与预览块用 <code>lipgloss.JoinHorizontal(lipgloss.Top, ...)</code> 横向拼接，中间隔 <code>previewGap</code> 列；为假 → 只渲染列表块，输出与现状一致。</li>
+</ul>
+
+<strong>行为契约 · 取快照六步（缺一不可）</strong>
+<ol>
+  <li>光标落到新目标（或按 <code>Ctrl-r</code>）→ <code>content = ""</code>、<code>err = ""</code>、<code>loading = true</code>、<code>target = 新目标</code>；预览区当帧就渲染 <code>previewLoadingText</code>。<span class="pill danger">NEVER</span> 保留上一个目标的画面。</li>
+  <li><code>seq++</code>，记下当前 <code>seq</code> 与 <code>target</code>。</li>
+  <li>返回 <code>tea.Tick(150*time.Millisecond, …)</code> 产出 <code>previewTickMsg{seq, target}</code>。</li>
+  <li><code>previewTickMsg</code> 到达：<code>msg.seq != m.preview.seq</code> → <strong>直接丢弃</strong>（光标已移走），不抓屏。</li>
+  <li>序号相等 → 返回抓屏 <code>tea.Cmd</code>（在 goroutine 里调 <code>Capturer.Capture(target)</code>），结果封成 <code>previewResultMsg{seq, target, content, err}</code>。</li>
+  <li><code>previewResultMsg</code> 到达：<code>msg.seq != m.preview.seq</code> <strong>或</strong> <code>msg.target != m.preview.target</code> → <strong>直接丢弃</strong>；两项都对上才写入 <code>content</code>/<code>err</code> 并置 <code>loading = false</code>。</li>
+</ol>
+<ul>
+  <li><strong>重复目标不重取</strong>：<code>force == false</code> 且新目标与 <code>m.preview.target</code> 相同、且不在 <code>loading</code>、且已有 <code>content</code> 或 <code>err</code> → 整个流程跳过，沿用已取快照。</li>
+  <li><code>Ctrl-r</code> → <code>retargetPreview(true)</code>，无条件走完六步（<code>seq</code> 照样自增，旧结果自然作废）。</li>
+  <li><span class="pill danger">NEVER</span> 用 <code>tea.Every</code> 或任何形式的自动轮询；除光标移动与 <code>Ctrl-r</code> 外不得发起抓屏。</li>
+  <li>抓屏<span class="pill danger">NEVER</span> 在渲染路径上同步执行——必须是 <code>tea.Cmd</code>，抓屏进程慢也不能阻塞按键。</li>
+</ul>
+
+<strong>行为契约 · 目标解析</strong>
+<table>
+  <tr><th>光标所在</th><th>抓屏目标</th></tr>
+  <tr><td>window 行</td><td><code>会话名:window序号</code></td></tr>
+  <tr><td>session 行（<code>src == "tmux"</code>）</td><td>该会话 <code>Active == true</code> 的 window → <code>会话名:序号</code>；无 active（数据滞后）→ 退回该会话<strong>首个</strong> window</td></tr>
+  <tr><td>session 行但 window 表为空</td><td>无目标（按非 tmux 项处理）</td></tr>
+  <tr><td>非 tmux 来源项</td><td>无目标 → 预览区渲染 <code>previewNoTargetText</code>，<strong>不发起抓屏</strong></td></tr>
+  <tr><td>无匹配结果（空列表）</td><td>无目标 → 预览区清空并渲染 <code>previewNoTargetText</code></td></tr>
+  <tr><td><code>Capturer == nil</code></td><td>无目标（保证未注入时既有测试行为不变）</td></tr>
+</table>
+
+<strong>行为契约 · 预览内容渲染</strong>
+<ul>
+  <li><code>loading</code> → 单行 <code>previewLoadingText</code>（<code>Faint</code>）；<code>err != ""</code> → 单行 <code>previewFailedPrefix + err</code>；<code>target == ""</code> → 单行 <code>previewNoTargetText</code>；否则渲染 <code>content</code>。</li>
+  <li>按 <code>"\n"</code> 切行，行数超出高度时<strong>保留末尾若干行</strong>（最新输出在底部）。</li>
+  <li>每行走 <code>ansi.Truncate(line, previewWidth, "")</code> 截断。<span class="pill danger">NEVER</span> 用 <code>[]byte</code> / <code>[]rune</code> 切片截断，否则会切断转义序列导致整屏错色。</li>
+  <li>每行渲染前前置 <code>"\x1b[0m"</code> 重置样式，避免上一行未闭合的转义污染下一行。</li>
+  <li>不足高度时用空行补齐，保证分栏块高度稳定（否则 <code>JoinHorizontal</code> 会让列表区跳动）。</li>
+  <li><code>github.com/charmbracelet/x/ansi</code> 从 indirect 转为直接依赖（<code>go mod tidy</code> 后 <code>go.mod</code> 里移到第一个 require 块）。</li>
+</ul>
+
+<strong>覆盖锚点 · 数据层 API</strong>
+<ul>
+  <li><code>PaneCapturer.Capture</code>：① 成功 → <code>content</code> 落库、<code>loading == false</code> ② 返回 error → <code>err</code> 落库并渲染失败说明、picker 不退出、列表仍可操作 ③ 结果 <code>seq</code> 过期 → 丢弃，<code>content</code> 不被污染 ④ 结果 <code>target</code> 对不上 → 丢弃 ⑤ 光标停在非 tmux 项 → <code>Capture</code> <strong>零调用</strong> ⑥ 定时消息 <code>seq</code> 过期 → <code>Capture</code> <strong>零调用</strong> ⑦ 同一目标二次进入 → <code>Capture</code> 仍只被调用一次 ⑧ <code>Ctrl-r</code> → <code>Capture</code> 再被调用一次</li>
+</ul>
+
+<strong>覆盖锚点 · 可交互控件</strong>
+<ul>
+  <li><code>Ctrl-r</code>：<code>seq</code> 自增 + <code>loading</code> 置真 + 重新发起抓屏；无目标时无反应</li>
+  <li><code>↑</code>/<code>↓</code> 移动光标：预览立刻清空并进入读取中（旧画面绝不残留）</li>
+  <li>终端尺寸变化（<code>tea.WindowSizeMsg</code>）：<code>width 101 → 102</code> 预览出现；<code>102 → 101</code> 预览消失；再拉宽自动恢复</li>
+</ul>
+
+<strong>覆盖锚点 · 布局约束</strong>
+<ul>
+  <li>列头 <code>ATTN</code> 的首字符列位 == 数据行徽章块的起始列位（竖向对齐不破）</li>
+  <li><code>ATTN</code> 起点与左侧内容之间的空格数 == <code>badgeLeftPad</code> 且 ≥ 2</li>
+  <li><code>WAIT</code> 列末列位与 session 名首字符之间的空格数 == <code>badgeRightGap</code> 且 ≥ 3（改前为 1）</li>
+  <li>表格横线起点列位 == 徽章区左内缩起点；长度 == <code>contentWidth - leftPad</code>，且不短于 <code>colsTotalWidth</code></li>
+  <li><code>showSessionStateTable() == false</code> 时：session 名紧随来源图标，行内不含任何额外留白（与改动前逐字节一致）</li>
+  <li>window 行左端列位 == session 名列起点 + <code>windowIndentStep</code></li>
+  <li>window 行不含 <code>ATTN</code>/<code>IDLE</code>/<code>RUN</code>/<code>WAIT</code> 任一字样，也不含用于占位的连续 19 空格块</li>
+  <li>宽度 ≥ 102 时：列表块宽 60、间距 2、预览块宽 == <code>width - 62</code> 且 ≥ 40；宽度 == 101 时输出为单列且与无预览版本一致</li>
+  <li>预览块行数 == <code>visibleCount()</code>；<code>visibleCount()</code> 在 <code>width=60</code> 与 <code>width=200</code>（同 <code>height</code>）下取值相同</li>
+  <li>预览每行的 ANSI 感知宽度（<code>ansi.StringWidth</code>）≤ <code>previewWidth()</code></li>
+</ul>
+</div>
+
+<h3>设计规范</h3>
+<p class="meta">本功能无设计稿（终端 TUI，PRD 提供的是字符示意图，且 PRD 已注明「非最终视觉稿，字符级排布待实现时对照验收标准微调」）。以下三份是本 step 的对照基线：<strong>验收口径以「留白规则」表与上面的布局约束为准，ASCII 示意仅供理解结构</strong>。</p>
+
+<h4>基线（改动前实拍）</h4>
+<p>文件 <code>./03-render-preview/baseline-frame.txt</code>——本计划用仓库既有的手动预览测试 <code>PREVIEW=1 go test -v -run TestVisualPreview ./picker/...</code> 抓的当前帧（含原始 ANSI）。可见现状：<strong><code>ATTN</code> 列紧贴来源图标（0 空格）</strong>，<strong><code>WAIT</code> 列末与 session 名之间 1 空格</strong>。GREEN 阶段用同一条命令再抓一帧做 before/after 对照。</p>
+<pre><code>  &gt; Filter Sessions...
+  ^a all  ^t tmux  ^g configs  ^x zoxide  ^f find  ^d kill
+    ────────────────────────────────────────────────────────
+    ATTN IDLE RUN  WAIT
+&gt;        1    0    0   default
+                      bay-translate-extension
+     ●    1    0    0   ai-dev-kit  done 15m ago</code></pre>
+
+<h4>目标结构（PRD 形态基线，非像素稿）</h4>
+<pre><code>┌─ picker ──────────────────────────┬─ preview ─────────────────────┐
+│  &gt; filter sessions...             │ ● Compacting conversation…    │
+│  ^a all  ^t tmux  ^g configs ...  │                               │
+│  ────────────────────────────     │ &gt; refactor the picker rows    │
+│    ATTN IDLE RUN  WAIT            │   so the badge block has      │
+│    ─── needs you (2) ──           │   breathing room             ▊ │
+│  &gt;  ●   0    1    0     proj-a    │                               │
+│           └ 1: claude *           │                               │
+│           └ 2: server             │                               │
+│     ●   1    0    0     proj-b    │                               │
+│    ───────────────                │                               │
+│         2    0    0     proj-c    │                               │
+└───────────────────────────────────┴───────────────────────────────┘
+  ↑2 空格                ↑3 空格      ↑2 列间距
+  badgeLeftPad         badgeRightGap  previewGap</code></pre>
+
+<h4>列位账本（<code>showIcons=true</code> + 状态表可见）</h4>
+<table>
+  <tr><th>区段</th><th>宽度</th><th>来源</th></tr>
+  <tr><td>光标列</td><td>2</td><td>现状</td></tr>
+  <tr><td>来源图标列</td><td>2（<code>showIcons=false</code> 时 0）</td><td>现状</td></tr>
+  <tr><td>徽章区左内缩</td><td>2</td><td><code>badgeLeftPad</code>（新增）</td></tr>
+  <tr><td>ATTN/IDLE/RUN/WAIT</td><td>19（<code>colsTotalWidth</code>）</td><td>现状不改</td></tr>
+  <tr><td>徽章区右间隔</td><td>3（原 1）</td><td><code>badgeRightGap</code></td></tr>
+  <tr><td>session 名列起点</td><td>= 2+2+2+19+3 = 列 28</td><td>推导</td></tr>
+  <tr><td>window 行左端</td><td>= 名列起点 + 2 = 列 30</td><td><code>windowIndentStep</code></td></tr>
+  <tr><td>列表区总宽</td><td>≤ 60（<code>contentWidth()</code> 现状）</td><td>现状不改；留白吃掉的是名字列可用宽度</td></tr>
+</table>
+
+<h4>颜色</h4>
+<p class="meta">全部复用 <code>picker/tui.go</code> 既有常量（<code>colorCursor</code>/<code>colorMatch</code>/<code>colorHeader</code> 等），本 step <span class="pill danger">NEVER</span> 新增配色；预览正文原样保留 tmux 带回的 ANSI。</p>
+
+<h3>本 step 涉及文件</h3>
+<ul>
+  <li>新增：<code>picker/preview.go</code> / <code>picker/preview_test.go</code></li>
+  <li>修改：<code>picker/tui.go</code> / <code>picker/picker.go</code> / <code>seshcli/claude_wire.go</code> / <code>seshcli/picker.go</code> / <code>go.mod</code> / <code>go.sum</code></li>
+  <li>物料子目录：<code>./03-render-preview/</code>（<code>baseline-frame.txt</code>——改动前实拍帧）</li>
+</ul>
+</section>
+
+<!-- ============================================================ -->
+<section data-section="step" data-step-id="04-connect-window">
+<h2>9. Step 04 · connect-window</h2>
+<p class="meta"><span class="pill">连接 + CLI + 文档</span><span class="pill">无物料</span><span class="pill">依赖 02</span><span class="pill">覆盖清单 #15 #16 #17</span></p>
+
+<h3>目标</h3>
+<p>让 picker 返回的 <code>session:index</code> 真正落地：connector 新增一条判定严格的 window 策略（四条全满足才认领），picker 命令入口先拆出会话名做 ATTN 确认再把完整目标串交给 connector，README ×2 补齐三个新按键与预览显示条件。</p>
+
+<h3>对外接口契约</h3>
+<div class="contract">
+<pre><code>// ---------- connector/window.go（新增文件） ----------
+// srcTmuxWindow 是 window 目标在策略链里的来源标识，
+// 与既有 "tmux-pane" 同构（靠特殊 name 格式识别后分流）。
+const srcTmuxWindow = "tmux-window"
+
+// parseWindowTarget 解析 "会话名:序号"。
+// 仅当「含且仅含一个冒号」且「冒号后非空且全为数字」时 ok=true。
+func parseWindowTarget(name string) (session string, index int, ok bool)
+
+func tmuxWindowStrategy(c *RealConnector, name string) (model.Connection, error)
+func connectToTmuxWindow(c *RealConnector, connection model.Connection, opts model.ConnectOpts) (string, error)
+
+// ---------- connector/connect.go（两处登记） ----------
+// strategies: tmuxPaneStrategy, tmuxWindowStrategy, tmuxStrategy, …（插在 pane 之后、tmux 之前）
+// connectStrategy: "tmux-window": connectToTmuxWindow
+
+// ---------- seshcli/picker.go ----------
+// sessionNameOf 把 picker 的选中结果还原成会话名，用于 ATTN 确认。
+// 判定与 parseWindowTarget 同款：不是 "名字:数字" 形态就原样返回。
+func sessionNameOf(chosen string) string</code></pre>
+
+<strong>行为契约 · window 策略四条判定</strong>
+<ol>
+  <li><code>strings.Count(name, ":") == 1</code>——含且仅含一个冒号</li>
+  <li>冒号后<strong>非空且每个字符都是 <code>0-9</code></strong>（前导 0 视为合法数字）</li>
+  <li><code>c.lister.FindTmuxSession(session)</code> 命中——会话名确实是一个活着的 tmux 会话</li>
+  <li><code>c.tmux.ListWindows(session)</code> 的结果里存在 <code>Index == index</code> 的 window</li>
+</ol>
+<ul>
+  <li><strong>四条全满足才认领</strong>：任一条不满足 → 返回 <code>Connection{Found:false}, nil</code>，<strong>放行给后续策略</strong>。<span class="pill danger">NEVER</span> 省掉第 3、4 条——否则形如 <code>foo:1</code> 的目录名会被误认领，把用户切到毫不相干的地方。</li>
+  <li><code>ListWindows</code> 自身报错 → 同样 <code>Found:false, nil</code>（放行，不打断整条链）。</li>
+  <li>认领时构造 <code>model.Connection{Found:true, New:false, AddToZoxide:false, Session: model.SeshSession{Src:"tmux-window", Name:&lt;完整目标串&gt;, Path:&lt;命中会话的 Path&gt;}}</code>。<code>AddToZoxide:false</code> 沿用 <code>tmuxPaneStrategy</code> 先例（window 目标不改动 zoxide 频次）。</li>
+  <li>插链位置：<strong><code>tmuxPaneStrategy</code> 之后、<code>tmuxStrategy</code> 之前</strong>。pane 策略要求 name 含 <code>/</code>，与 <code>sess:3</code> 天然不冲突；排在 <code>tmuxStrategy</code> 之前是为了避免会话名恰好等于整串时被抢走。</li>
+</ul>
+
+<strong>行为契约 · 连接动作</strong>
+<table>
+  <tr><th>场景</th><th>动作</th><th>返回</th></tr>
+  <tr><td><code>c.tmux.IsAttached() == true</code></td><td><code>SwitchClient(session)</code> → <code>SelectWindow("session:index")</code></td><td><code>switching to tmux window: &lt;target&gt;</code></td></tr>
+  <tr><td><code>c.tmux.IsAttached() == false</code></td><td><code>AttachSession("session:index")</code></td><td><code>attaching to tmux window: &lt;target&gt;</code></td></tr>
+</table>
+<ul>
+  <li>任一步报错 → 用 <code>fmt.Errorf(... %w ...)</code> 包装后返回，<strong>不 panic、不把裸错误抛到终端</strong>（数据滞后导致 window 已关时就是这条路径）。</li>
+  <li><span class="pill danger">NEVER</span> 在这条路径上创建 session / 创建 window / 重命名 window——认领失败就放行，不兜底新建。</li>
+</ul>
+
+<strong>行为契约 · 命令入口收口</strong>
+<ul>
+  <li><code>sessionNameOf(chosen)</code>：命中「含且仅含一个冒号 + 冒号后纯数字」→ 返回冒号前半段；否则<strong>原样返回</strong>（会话名本身不含冒号时零影响）。</li>
+  <li><code>seshcli/picker.go</code>：<code>_ = deps.Attention.Ack(sessionNameOf(chosen))</code> → 然后 <code>deps.Connector.Connect(chosen, model.ConnectOpts{})</code> 传<strong>完整目标串</strong>。<span class="pill danger">NEVER</span> 拿 <code>会话名:序号</code> 直接去 Ack（会落空，用户从 ATTN 区进了 window 标记却还挂着）。</li>
+  <li><code>chosen == ""</code> → 直接返回，不 Ack 不 Connect（现状不变）。</li>
+  <li><span class="pill danger">NEVER</span> 改 <code>Pick()</code> 的公开签名，选中结果仍是字符串。</li>
+</ul>
+
+<strong>行为契约 · 文档</strong>
+<ul>
+  <li><code>README.md</code> / <code>README.zh-cn.md</code> 的 Picker hotkey 表各新增 3 行：<code>→</code> / <code>←</code> / <code>Ctrl-r</code>（文案见 §3.4）。</li>
+  <li>表格下方补一句预览分栏显示条件：终端宽度 ≥ 102 列（列表 60 + 间距 2 + 预览 40），拉宽自动恢复。</li>
+  <li>既有 7 行 hotkey（<code>Ctrl-a</code>/<code>Ctrl-t</code>/<code>Ctrl-g</code>/<code>Ctrl-x</code>/<code>Ctrl-f</code>、<code>Ctrl-d</code>、<code>Alt-d</code>）文案<strong>一字不改</strong>。</li>
+</ul>
+
+<strong>覆盖锚点 · 数据层 API</strong>
+<ul>
+  <li><code>lister.FindTmuxSession</code>：命中 → 继续判定；未命中 → <code>Found:false</code> 放行</li>
+  <li><code>tmux.ListWindows</code>：① 含目标 index → 认领 ② 不含 → 放行 ③ 报错 → 放行（<code>err == nil</code>）</li>
+  <li><code>tmux.IsAttached</code>：真 / 假两条分支各走对应连接动作</li>
+  <li><code>tmux.SwitchClient</code>：成功 → 继续 <code>SelectWindow</code>；失败 → 包装 error 返回且<strong>不再调 <code>SelectWindow</code></strong></li>
+  <li><code>tmux.SelectWindow</code>：成功 → 返回 switching 文案；失败 → 包装 error</li>
+  <li><code>tmux.AttachSession</code>：成功 → 返回 attaching 文案且入参是<strong>完整目标串</strong>；失败 → 包装 error</li>
+  <li><code>attention.Store.Ack</code>：入参恒为拆分后的会话名（<code>"proj-a:3"</code> → <code>Ack("proj-a")</code>）</li>
+</ul>
+
+<strong>覆盖锚点 · 可交互控件</strong>（CLI 层可观察行为）
+<ul>
+  <li>picker 返回 <code>"proj-a"</code> → <code>Ack("proj-a")</code> + <code>Connect("proj-a")</code>（现状回归）</li>
+  <li>picker 返回 <code>"proj-a:3"</code> → <code>Ack("proj-a")</code> + <code>Connect("proj-a:3")</code></li>
+  <li>picker 返回 <code>""</code>（用户 esc）→ 既不 Ack 也不 Connect</li>
+  <li><code>parseWindowTarget</code> 反例逐条：<code>"foo"</code>（无冒号）/ <code>"a:b:1"</code>（两个冒号）/ <code>"foo:bar"</code>（非数字）/ <code>"foo:"</code>（空）/ <code>":3"</code>（会话名空）——全部 <code>ok == false</code></li>
+  <li>目录名陷阱：<code>"notes:1"</code> 且 tmux 里<strong>没有</strong> <code>notes</code> 会话 → 放行到 dir/zoxide 策略，<strong>不被 window 策略认领</strong></li>
+  <li>序号陷阱：<code>"proj-a:9"</code> 但该会话只有 window 1/2 → 放行，不误切</li>
+</ul>
+
+<strong>覆盖锚点 · 布局约束</strong>
+<p class="meta">本 step 无渲染改动。文档改动的结构约束：两份 README 的 hotkey 表数据行数一致（各由 7 行增至 10 行），新增行的按键写法与既有行风格一致（反引号包裹）。</p>
+</div>
+
+<h3>本 step 涉及文件</h3>
+<ul>
+  <li>新增：<code>connector/window.go</code> / <code>connector/window_test.go</code> / <code>seshcli/picker_ack_test.go</code></li>
+  <li>修改：<code>connector/connect.go</code> / <code>seshcli/picker.go</code> / <code>README.md</code> / <code>README.zh-cn.md</code></li>
+  <li>物料子目录：无</li>
+</ul>
+</section>
+
+</main>
+</body>
+</html>
