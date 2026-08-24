@@ -128,6 +128,11 @@ cc-sesh window          # 列出 / 切换 / 新建当前 session 内的 window
 | `Ctrl-f` | 在 `$HOME` 下深度 ≤ 2 列目录 |
 | `Ctrl-d` | kill 当前光标所指的 tmux session |
 | `Alt-d`  | dismiss 当前行的 ATTN 标记（不 kill session） |
+| `→` | 展开光标所在 session（仅 tmux 来源） |
+| `←` | 折起 session（光标在 window 行时折起其所属 session 并收回光标） |
+| `Ctrl-r` | 重取当前预览快照 |
+
+终端宽度 ≥ 102 列（列表 60 + 间距 2 + 预览 40）才渲染预览分栏；拉宽终端会自动恢复。
 
 ## Shell 补全
 

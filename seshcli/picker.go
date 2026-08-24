@@ -1,12 +1,34 @@
 package seshcli
 
 import (
+	"strings"
+
 	"github.com/spf13/cobra"
 
 	"github.com/Wingsdh/cc-sesh/v2/lister"
 	"github.com/Wingsdh/cc-sesh/v2/model"
 	"github.com/Wingsdh/cc-sesh/v2/picker"
 )
+
+// sessionNameOf 把 picker 的选中结果还原成会话名，用于 ATTN 确认。
+// 判定与 connector 的 parseWindowTarget 同款：含且仅含一个冒号、冒号后非空且全为数字
+// 才拆分；不是这个形态就原样返回（会话名本身不含冒号时零影响）。
+func sessionNameOf(chosen string) string {
+	if strings.Count(chosen, ":") != 1 {
+		return chosen
+	}
+	sep := strings.Index(chosen, ":")
+	session, digits := chosen[:sep], chosen[sep+1:]
+	if session == "" || digits == "" {
+		return chosen
+	}
+	for _, r := range digits {
+		if r < '0' || r > '9' {
+			return chosen
+		}
+	}
+	return session
+}
 
 func NewPickerCommand(base *BaseDeps) *cobra.Command {
 	cmd := &cobra.Command{
@@ -81,8 +103,11 @@ func NewPickerCommand(base *BaseDeps) *cobra.Command {
 				return nil
 			}
 
-			// attach 之前先 ack：用户「点进去」的语义就是清掉粘性标记
-			_ = deps.Attention.Ack(chosen)
+			// attach 之前先 ack：用户「点进去」的语义就是清掉粘性标记。
+			// chosen 可能是 "会话名:window序号"，attention 只按会话名跟踪，
+			// 直接拿完整目标串去 Ack 会落空——用户从 ATTN 区进了 window，
+			// 标记却还挂着。
+			_ = deps.Attention.Ack(sessionNameOf(chosen))
 
 			if _, err := deps.Connector.Connect(chosen, model.ConnectOpts{}); err != nil {
 				return err
