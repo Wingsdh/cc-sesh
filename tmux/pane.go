@@ -49,6 +49,25 @@ func parseTmuxPanesOutput(rawList []string) ([]*model.TmuxPane, error) {
 	return panes, nil
 }
 
+// ListWindowPanes 列出目标 window 内全部 pane 的序号，顺序沿用 tmux 输出。
+// 预览分栏用它枚举 window 的 pane 逐个抓屏；失败 fail-soft 返回空切片 + nil，
+// 调用方退回「只抓活动 pane」即可，不值得为预览断流。
+func (t *RealTmux) ListWindowPanes(target string) ([]int, error) {
+	output, err := t.shell.ListCmd("tmux", "list-panes", "-t", target, "-F", "#{pane_index}")
+	if err != nil {
+		return []int{}, nil
+	}
+	indexes := make([]int, 0, len(output))
+	for _, line := range output {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		indexes = append(indexes, convert.StringToInt(line))
+	}
+	return indexes, nil
+}
+
 // ListAllPanes 跨所有 tmux session 列出 pane（cwd / pid / 所属 session）。
 // 用于 cc-sesh 的 Claude → session 关联：通过 cwd 匹配。
 func (t *RealTmux) ListAllPanes() ([]*model.TmuxPaneAcrossSessions, error) {

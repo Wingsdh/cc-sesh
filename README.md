@@ -130,6 +130,13 @@ Inside the picker (no `fzf-tmux` wrapper required):
 | `Ctrl-f` | walk `$HOME` to depth ≤ 2 |
 | `Ctrl-d` | kill the tmux session under cursor |
 | `Alt-d`  | dismiss the ATTN flag on the current row (does not kill) |
+| `→` | expand the session under cursor (tmux sources only) |
+| `←` | collapse the session (from a window row: collapse its session and move the cursor back) |
+| `Ctrl-r` | re-capture the preview snapshot |
+
+The preview pane renders only when the terminal is at least 102 columns wide
+(list 60 + gap 2 + preview 40); it comes back automatically when you widen the terminal.
+On wider terminals the list takes 40% of the width (min 60 columns) and the preview the rest.
 
 ## Shell completion
 

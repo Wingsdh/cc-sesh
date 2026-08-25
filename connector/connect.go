@@ -14,6 +14,10 @@ func (c *RealConnector) Connect(name string, opts model.ConnectOpts) (string, er
 	// sesh connect --config (sesh list --config | fzf)
 	strategies := []func(*RealConnector, string) (model.Connection, error){
 		tmuxPaneStrategy,
+		// window 策略排在 pane 之后、tmux 之前：pane 策略要求 name 含 '/'，与
+		// "sess:3" 天然不冲突；排在 tmuxStrategy 之前是为了避免会话名恰好等于
+		// 整个目标串时被它抢走。
+		tmuxWindowStrategy,
 		tmuxStrategy,
 		tmuxinatorStrategy,
 		configStrategy,
@@ -24,6 +28,7 @@ func (c *RealConnector) Connect(name string, opts model.ConnectOpts) (string, er
 
 	connectStrategy := map[string]func(c *RealConnector, connection model.Connection, opts model.ConnectOpts) (string, error){
 		"tmux-pane":       connectToTmuxPane,
+		srcTmuxWindow:     connectToTmuxWindow,
 		"tmux":            connectToTmux,
 		"tmuxinator":      connectToTmuxinator,
 		"config":          connectToTmux,

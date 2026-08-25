@@ -24,6 +24,19 @@ type Killer interface {
 	Kill(name string) error
 }
 
+// ExpandStore 由 picker 在用户手动展开 / 折起 session 时调用，持久化展开集合。
+// 传 nil 时 picker 退化为纯内存展开状态（不读盘、不写盘）。
+type ExpandStore interface {
+	LoadExpanded() map[string]struct{}
+	SaveExpanded(names []string) error
+}
+
+// PaneCapturer 由 picker 在需要预览时调用，抓取任意 tmux 目标的当前屏幕（含 ANSI 颜色）。
+// 传 nil 时 picker 不发起任何抓屏，预览区显示无目标说明。
+type PaneCapturer interface {
+	Capture(target string) (string, error)
+}
+
 type PickerOptions struct {
 	ShowIcons      *bool
 	SeparatorAware *bool
@@ -32,6 +45,8 @@ type PickerOptions struct {
 	Decorator      Decorator
 	Dismisser      Dismisser
 	Killer         Killer
+	ExpandStore    ExpandStore
+	Capturer       PaneCapturer
 }
 
 type Picker interface {
@@ -74,6 +89,12 @@ func (p *RealPicker) Pick(fetchFunc FetchFunc, opts PickerOptions) (string, erro
 	}
 
 	m := New(fetchFunc, dec, opts.Dismisser, opts.Killer, showIcons, p.config.SeparatorAware, prompt, placeholder)
+	if opts.ExpandStore != nil {
+		m = m.WithExpandStore(opts.ExpandStore)
+	}
+	if opts.Capturer != nil {
+		m = m.WithCapturer(opts.Capturer)
+	}
 	prog := tea.NewProgram(m)
 	result, err := prog.Run()
 	if err != nil {

@@ -49,3 +49,41 @@ func TestListClients(t *testing.T) {
 		assert.Nil(t, got)
 	})
 }
+
+func TestListWindowPanes(t *testing.T) {
+	t.Run("parses pane indexes in tmux order", func(t *testing.T) {
+		mockShell := &shell.MockShell{}
+		tm := &RealTmux{shell: mockShell, bin: "tmux"}
+		mockShell.EXPECT().
+			ListCmd("tmux", "list-panes", "-t", "s:2", "-F", "#{pane_index}").
+			Return([]string{"0", "1", "2"}, nil)
+
+		got, err := tm.ListWindowPanes("s:2")
+		require.NoError(t, err)
+		assert.Equal(t, []int{0, 1, 2}, got)
+	})
+
+	t.Run("fail-soft: ListCmd error returns empty slice and nil error", func(t *testing.T) {
+		mockShell := &shell.MockShell{}
+		tm := &RealTmux{shell: mockShell, bin: "tmux"}
+		mockShell.EXPECT().
+			ListCmd("tmux", "list-panes", "-t", "gone:9", "-F", "#{pane_index}").
+			Return(nil, errors.New("can't find window"))
+
+		got, err := tm.ListWindowPanes("gone:9")
+		require.NoError(t, err)
+		assert.Empty(t, got)
+	})
+
+	t.Run("skips blank lines", func(t *testing.T) {
+		mockShell := &shell.MockShell{}
+		tm := &RealTmux{shell: mockShell, bin: "tmux"}
+		mockShell.EXPECT().
+			ListCmd("tmux", "list-panes", "-t", "s:1", "-F", "#{pane_index}").
+			Return([]string{"0", "", " ", "1"}, nil)
+
+		got, err := tm.ListWindowPanes("s:1")
+		require.NoError(t, err)
+		assert.Equal(t, []int{0, 1}, got)
+	})
+}
