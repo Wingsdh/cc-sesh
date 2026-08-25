@@ -920,6 +920,29 @@ func TestRenderPreview_StripsTrailingBlankLinesBeforeKeepingTail(t *testing.T) {
 	}
 }
 
+func TestSanitizePreviewLine_KeepsOnlyTextAndSgr(t *testing.T) {
+	// 白名单清洗：非 SGR 转义与零宽字符会让差分渲染器与终端的宽度/光标模型
+	// 产生分歧，一格之差整屏错位（长列表导航乱屏的成因之一）。
+	cases := []struct {
+		name, in, want string
+	}{
+		{"SGR 颜色保留", "\x1b[31mred\x1b[0m", "\x1b[31mred\x1b[0m"},
+		{"OSC8 超链接剥掉", "\x1b]8;;https://x.dev\x1b\\link\x1b]8;;\x1b\\", "link"},
+		{"OSC BEL 终止形态", "\x1b]0;title\x07text", "text"},
+		{"光标移动剥掉", "a\x1b[5Zb\x1b[10Cc\x1b[2Ad", "abcd"},
+		{"字符集切换剥掉", "\x1b(0qqq\x1b(B", "qqq"},
+		{"VS16 变体选择符剥掉", "⚠️!", "⚠!"},
+		{"零宽连接符剥掉", "a‍b", "ab"},
+		{"tab 换空格", "a\tb", "a b"},
+		{"CR 剥掉", "line\r", "line"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			assert.Equal(t, tc.want, sanitizePreviewLine(tc.in))
+		})
+	}
+}
+
 func TestRenderPreview_ResetsStyleBeforeEachLine(t *testing.T) {
 	// tc-a70：前一行未闭合的转义序列不应污染下一行——每行渲染前前置 "\x1b[0m"。
 	content := "\x1b[31mred-unclosed\nsecond-line"

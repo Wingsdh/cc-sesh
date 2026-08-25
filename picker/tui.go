@@ -11,6 +11,7 @@ import (
 	"charm.land/bubbles/v2/textinput"
 	tea "charm.land/bubbletea/v2"
 	"charm.land/lipgloss/v2"
+	"github.com/charmbracelet/x/ansi"
 	"github.com/sahilm/fuzzy"
 
 	"github.com/Wingsdh/cc-sesh/v2/icon"
@@ -902,6 +903,13 @@ func (m Model) previewHeight() int {
 	return max(3, m.height-1)
 }
 
+// fitRow 把一条列表行截到 contentWidth 内（ANSI 感知，截断时以 … 结尾）。
+// 不截断的话，超宽行（长 zoxide 路径实测踩中）会被列表块的 Width(contentWidth)
+// 折成多个物理行，把列表块撑得比终端高，引发整屏滚动错位。
+func (m Model) fitRow(line string) string {
+	return ansi.Truncate(line, m.contentWidth(), "…")
+}
+
 // renderList 渲染左侧列表块。预览是否显示不影响它的任何一行——
 // visibleCount() 也不受预览影响，窄终端下的可见条数与改动前一致。
 func (m Model) renderList() string {
@@ -952,7 +960,7 @@ func (m Model) renderList() string {
 			// window 行不参与 attention 分组：它属于上面那条 session 行的展开内容，
 			// 在它前面插 header / 分割线会把一个 session 的行拦腰劈开。
 			if row.kind == rowWindow {
-				b.WriteString(m.renderWindowRow(row, i == m.cursor))
+				b.WriteString(m.fitRow(m.renderWindowRow(row, i == m.cursor)))
 				b.WriteString("\n")
 				linesPrinted++
 				continue
@@ -973,7 +981,7 @@ func (m Model) renderList() string {
 				linesPrinted++
 			}
 
-			b.WriteString(m.renderRow(fi, i == m.cursor))
+			b.WriteString(m.fitRow(m.renderRow(fi, i == m.cursor)))
 			b.WriteString("\n")
 			linesPrinted++
 		}

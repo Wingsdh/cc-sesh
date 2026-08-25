@@ -1,6 +1,7 @@
 package picker
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
@@ -8,6 +9,30 @@ import (
 	"charm.land/lipgloss/v2"
 	"github.com/charmbracelet/x/ansi"
 )
+
+// 抓屏内容的白名单清洗：只留文本 + SGR 颜色序列。
+//
+// capture-pane -e 会原样保留 pane 里的 OSC 超链接（\x1b]8;...）等非 SGR 转义；
+// 变体选择符（U+FE0F 把 ⚠ 变 emoji ⚠️）这类零宽字符则让「渲染器认为的宽度」
+// 与「终端画出来的宽度」出现分歧。bubbletea v2 是差分渲染，光标靠「跳过 N 格」
+// 定位——任何一处宽度分歧都会让该行之后的所有内容整体错位（长列表导航乱屏
+// 实测踩中）。全部剥掉，让各方宽度模型对齐。
+var (
+	previewOscRe       = regexp.MustCompile(`\x1b\][^\x07\x1b]*(\x07|\x1b\\)`)
+	previewCsiNonSgrRe = regexp.MustCompile(`\x1b\[[0-9;:?]*[^m0-9;:?]`)   // CSI 但结尾不是 m
+	previewEscMiscRe   = regexp.MustCompile(`\x1b[()][0-9A-B]|\x1b[^[\]]`) // 字符集切换与单字符 ESC
+	previewZeroWidthRe = regexp.MustCompile(`[\x{200B}-\x{200D}\x{FE00}-\x{FE0F}\x{2060}]`)
+)
+
+func sanitizePreviewLine(line string) string {
+	line = previewOscRe.ReplaceAllString(line, "")
+	line = previewCsiNonSgrRe.ReplaceAllString(line, "")
+	line = previewEscMiscRe.ReplaceAllString(line, "")
+	line = previewZeroWidthRe.ReplaceAllString(line, "")
+	line = strings.ReplaceAll(line, "\t", " ")
+	line = strings.ReplaceAll(line, "\r", "")
+	return line
+}
 
 // 预览区的占位与失败文案。PRD 只要求「显示一行简短说明」，具体措辞由计划定稿。
 const (
@@ -167,7 +192,7 @@ func (m Model) renderPreview(width, height int) string {
 
 	out := make([]string, 0, height)
 	for _, line := range lines {
-		out = append(out, "\x1b[0m"+ansi.Truncate(line, width, ""))
+		out = append(out, "\x1b[0m"+ansi.Truncate(sanitizePreviewLine(line), width, ""))
 	}
 	for len(out) < height {
 		out = append(out, "")
